@@ -262,13 +262,22 @@ public class TREREngine {
         while (!abortFlag) {
             attempt++;
             try {
-                return Networking.fetch(url, null, attempt);
+                String result = Networking.fetch(url, null, attempt);
+                callback.logDebug("info", "Fetch successful on attempt " + attempt);
+                return result;
             } catch (Exception e) {
+                String errorMsg = e.getMessage();
+                callback.logDebug("warn", "Fetch attempt " + attempt + " failed: " + errorMsg);
+
                 int delay = Math.min(500 * (int)Math.pow(1.6, attempt), 10000);
-                callback.onNguUpdate(true, "Hunting... wait " + (delay/1000) + "s", attempt, 0);
+                callback.onNguUpdate(true, "Hunting (" + errorMsg + ")... wait " + (delay/1000) + "s", attempt, 0);
+
                 for (int i = 0; i < 20; i++) {
-                    if (abortFlag) throw new Exception("Aborted");
-                    callback.onNguUpdate(true, "Hunting... wait " + (delay/1000) + "s", attempt, (i+1)*5);
+                    if (abortFlag) {
+                        callback.logDebug("info", "Fetch aborted during NGU wait");
+                        throw new Exception("Aborted");
+                    }
+                    callback.onNguUpdate(true, "Hunting (" + errorMsg + ")... wait " + (delay/1000) + "s", attempt, (i+1)*5);
                     Thread.sleep(delay / 20);
                 }
             }

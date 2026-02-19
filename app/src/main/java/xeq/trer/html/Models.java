@@ -66,6 +66,8 @@ public class Models {
         public int count;
         public long ts;
 
+        public HistoryEntry() {}
+
         public HistoryEntry(String q, int count, long ts) {
             this.q = q;
             this.count = count;
