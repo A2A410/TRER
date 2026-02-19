@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>TRER · Top Relevance Engine Resolver</title>
+<style>
+:root{
+--bg:#0a0c10;--bg2:#111318;--bg3:#181c24;--bg4:#1e232e;
+--acc:#00e5ff;--acc2:#7c4dff;--acc3:#00bfa5;
+--warn:#ffab00;--err:#ff5252;--ok:#69f0ae;
+--txt:#e0e6f0;--txt2:#8a95a8;--txt3:#4a5568;
+--rad:8px;--rad2:12px;--rad3:16px;
+--fnt:'IBM Plex Mono',monospace;
+--shadow:0 2px 16px #00000080;
+--glow:0 0 12px #00e5ff40;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--bg);color:var(--txt);font-family:var(--fnt);font-size:13px;overflow-x:hidden}
+body{display:flex;flex-direction:column;max-width:520px;margin:0 auto;min-height:100vh}
+
+/* TOP BAR */
+.topbar{display:flex;align-items:center;gap:8px;padding:12px 14px 0;position:sticky;top:0;z-index:100;background:var(--bg);border-bottom:1px solid #ffffff08}
+.logo{font-size:11px;font-weight:700;letter-spacing:.15em;color:var(--acc);text-transform:uppercase;white-space:nowrap}
+.logo span{color:var(--txt3)}
+.topbar-acts{display:flex;gap:6px;margin-left:auto}
+.icon-btn{width:32px;height:32px;border-radius:var(--rad);background:var(--bg3);border:1px solid #ffffff10;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--txt2);font-size:14px;transition:.15s}
+.icon-btn:active{background:var(--bg4);transform:scale(.95)}
+.icon-btn.active{color:var(--acc);border-color:var(--acc)40}
+
+/* SEARCH BAR */
+.searchbar{padding:12px 14px;display:flex;gap:8px;align-items:center}
+.searchbar input{flex:1;background:var(--bg3);border:1px solid #ffffff15;border-radius:var(--rad2);padding:10px 14px;color:var(--txt);font-family:var(--fnt);font-size:13px;outline:none;transition:.2s}
+.searchbar input:focus{border-color:var(--acc)60;box-shadow:var(--glow)}
+.searchbar input::placeholder{color:var(--txt3)}
+.run-btn{min-width:72px;height:40px;background:linear-gradient(135deg,var(--acc2),var(--acc));border:none;border-radius:var(--rad2);color:#000;font-family:var(--fnt);font-size:12px;font-weight:700;letter-spacing:.05em;cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:center;gap:6px}
+.run-btn:active{opacity:.8;transform:scale(.97)}
+.run-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.run-btn svg{width:14px;height:14px}
+
+/* WAVE PROGRESS */
+.wave-track{padding:0 14px 10px;display:none}
+.wave-track.show{display:block}
+.wave-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.wave-lbl{font-size:10px;font-weight:700;letter-spacing:.1em;min-width:58px;color:var(--txt3)}
+.wave-lbl.active{color:var(--acc)}
+.wave-lbl.done{color:var(--ok)}
+.wave-bar{flex:1;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden}
+.wave-fill{height:100%;width:0;border-radius:2px;transition:width .4s ease;background:var(--acc)}
+.wave-fill.w2{background:var(--acc2)}
+.wave-fill.w3{background:var(--acc3)}
+.wave-fill.done{background:var(--ok)}
+.wave-stat{font-size:10px;color:var(--txt3);min-width:36px;text-align:right}
+.eta-row{display:flex;justify-content:space-between;font-size:10px;color:var(--txt3);margin-bottom:4px}
+
+/* STATUS LOG */
+.status-log{padding:0 14px;margin-bottom:8px;max-height:80px;overflow-y:auto;display:none}
+.status-log.show{display:block}
+.status-entry{font-size:10px;color:var(--txt3);line-height:1.6;display:flex;gap:6px;align-items:flex-start}
+.status-entry .ts{color:var(--txt3);opacity:.5;min-width:28px;font-size:9px}
+.status-entry.ok .msg{color:var(--ok)}
+.status-entry.warn .msg{color:var(--warn)}
+.status-entry.err .msg{color:var(--err)}
+.status-entry.info .msg{color:var(--acc)}
+
+/* KEYWORDS CHIPS */
+.keywords-section{padding:0 14px 10px;display:none}
+.keywords-section.show{display:block}
+.sec-lbl{font-size:9px;letter-spacing:.12em;color:var(--txt3);text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.sec-lbl::after{content:'';flex:1;height:1px;background:var(--bg4)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:4px 10px;border-radius:20px;font-size:10px;font-weight:600;letter-spacing:.04em;border:1px solid;cursor:default;display:flex;align-items:center;gap:5px;transition:.15s}
+.chip:active{transform:scale(.96)}
+.chip-score{font-size:9px;opacity:.7}
+.chip.kw-hi{background:#00e5ff15;border-color:#00e5ff40;color:var(--acc)}
+.chip.kw-md{background:#7c4dff10;border-color:#7c4dff30;color:#b47aff}
+.chip.kw-lo{background:#ffffff06;border-color:#ffffff15;color:var(--txt2)}
+.chip.kw-orig{background:#00bfa515;border-color:#00bfa540;color:var(--acc3)}
+
+/* RESULTS */
+.results-section{padding:0 14px;display:none;flex:1}
+.results-section.show{display:block}
+.result-count{font-size:10px;color:var(--txt3);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.result-card{background:var(--bg2);border:1px solid #ffffff0a;border-radius:var(--rad2);padding:12px 14px;margin-bottom:8px;transition:.2s;cursor:pointer;display:block;text-decoration:none;color:inherit;position:relative;overflow:hidden}
+.result-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--acc);opacity:0;transition:.2s}
+.result-card:active{background:var(--bg3)}
+.result-card:active::before{opacity:1}
+.rc-rank{position:absolute;top:10px;right:12px;font-size:9px;font-weight:700;color:var(--txt3);letter-spacing:.05em}
+.rc-rank.top3{color:var(--warn)}
+.rc-title{font-size:12px;font-weight:600;color:var(--txt);line-height:1.4;margin-bottom:4px;padding-right:40px}
+.rc-url{font-size:9px;color:var(--acc);opacity:.7;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc-snippet{font-size:10px;color:var(--txt2);line-height:1.5}
+.rc-meta{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.rc-badge{font-size:9px;padding:2px 7px;border-radius:10px;border:1px solid;letter-spacing:.04em}
+.rc-badge.waves{background:#00e5ff08;border-color:#00e5ff20;color:var(--acc)}
+.rc-badge.score{background:#69f0ae08;border-color:#69f0ae20;color:var(--ok)}
+.rc-badge.domain{background:#7c4dff08;border-color:#7c4dff20;color:#b47aff}
+
+/* EMPTY / ERROR */
+.empty-state{padding:40px 14px;text-align:center}
+.empty-icon{font-size:36px;margin-bottom:12px;opacity:.3}
+.empty-title{font-size:13px;font-weight:600;color:var(--txt2);margin-bottom:6px}
+.empty-sub{font-size:11px;color:var(--txt3);line-height:1.6}
+
+/* SETTINGS DRAWER */
+.drawer-overlay{position:fixed;inset:0;background:#00000080;z-index:200;opacity:0;pointer-events:none;transition:.25s}
+.drawer-overlay.open{opacity:1;pointer-events:all}
+.drawer{position:fixed;bottom:0;left:50%;transform:translate(-50%,100%);width:100%;max-width:520px;background:var(--bg2);border-radius:var(--rad3) var(--rad3) 0 0;z-index:201;transition:transform .3s cubic-bezier(.4,0,.2,1);padding:0 0 32px;max-height:85vh;overflow-y:auto}
+.drawer.open{transform:translate(-50%,0)}
+.drawer-handle{width:36px;height:4px;background:var(--bg4);border-radius:2px;margin:10px auto 16px}
+.drawer-head{padding:0 16px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #ffffff08}
+.drawer-title{font-size:13px;font-weight:700;color:var(--txt);letter-spacing:.08em}
+.drawer-close{width:28px;height:28px;border-radius:50%;background:var(--bg3);border:none;color:var(--txt2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px}
+.drawer-body{padding:16px}
+.setting-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px}
+.setting-info{flex:1}
+.setting-lbl{font-size:12px;font-weight:600;color:var(--txt)}
+.setting-sub{font-size:10px;color:var(--txt3);margin-top:2px}
+.toggle{width:40px;height:22px;border-radius:11px;background:var(--bg4);border:1px solid #ffffff15;cursor:pointer;position:relative;transition:.2s;flex-shrink:0}
+.toggle.on{background:var(--acc2);border-color:var(--acc2)}
+.toggle::after{content:'';width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:.2s}
+.toggle.on::after{left:20px}
+.num-input{width:52px;background:var(--bg3);border:1px solid #ffffff15;border-radius:var(--rad);padding:5px 8px;color:var(--txt);font-family:var(--fnt);font-size:12px;text-align:center}
+.num-input:focus{outline:none;border-color:var(--acc)50}
+.range-lbl{font-size:11px;color:var(--txt2);min-width:28px;text-align:right}
+.setting-section{font-size:9px;letter-spacing:.15em;color:var(--txt3);text-transform:uppercase;margin:20px 0 10px;display:flex;align-items:center;gap:8px}
+.setting-section::after{content:'';flex:1;height:1px;background:var(--bg4)}
+
+/* DEBUG DRAWER */
+.debug-body{padding:12px;background:var(--bg);border-radius:var(--rad);max-height:320px;overflow-y:auto;font-size:10px;line-height:1.7}
+.debug-line{display:flex;gap:6px;align-items:flex-start;border-bottom:1px solid #ffffff05;padding:2px 0}
+.debug-line .dl-ts{color:var(--txt3);opacity:.5;min-width:40px;font-size:9px;flex-shrink:0}
+.debug-line .dl-lvl{min-width:36px;font-size:9px;font-weight:700;flex-shrink:0}
+.debug-line .dl-lvl.l-log{color:var(--txt2)}
+.debug-line .dl-lvl.l-info{color:var(--acc)}
+.debug-line .dl-lvl.l-warn{color:var(--warn)}
+.debug-line .dl-lvl.l-error{color:var(--err)}
+.debug-line .dl-msg{color:var(--txt);word-break:break-all}
+.debug-acts{display:flex;gap:8px;margin-bottom:10px}
+.sm-btn{padding:5px 12px;border-radius:var(--rad);background:var(--bg3);border:1px solid #ffffff15;color:var(--txt2);font-family:var(--fnt);font-size:10px;cursor:pointer}
+.sm-btn:active{background:var(--bg4)}
+
+/* HISTORY DRAWER */
+.hist-item{background:var(--bg3);border-radius:var(--rad);padding:10px 12px;margin-bottom:8px;cursor:pointer;border:1px solid #ffffff08;display:flex;align-items:center;gap:10px}
+.hist-item:active{background:var(--bg4)}
+.hist-q{font-size:12px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hist-meta{font-size:9px;color:var(--txt3)}
+.hist-del{width:26px;height:26px;border-radius:50%;background:var(--bg4);border:none;color:var(--err);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+
+/* RETRY TOAST */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--bg3);border:1px solid var(--warn)40;border-radius:var(--rad2);padding:10px 16px;font-size:11px;color:var(--warn);display:none;z-index:300;white-space:nowrap;box-shadow:var(--shadow)}
+.toast.show{display:block}
+
+/* BOTTOM PADDING */
+.bot-pad{height:20px}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
+
+/* LOADER PULSE */
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+.pulsing{animation:pulse 1.2s ease infinite}
+
+/* NO-GIVE-UP HUNT BAR */
+.ngu-bar{display:none;margin:0 14px 8px;background:var(--bg3);border:1px solid var(--warn)30;border-radius:var(--rad);padding:7px 12px;gap:10px;align-items:center}
+.ngu-bar.show{display:flex}
+.ngu-icon{font-size:13px;animation:ngu-spin 1.5s linear infinite}
+@keyframes ngu-spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.ngu-text{flex:1;font-size:10px;color:var(--warn);line-height:1.4}
+.ngu-attempt{font-size:9px;color:var(--txt3);text-align:right;white-space:nowrap}
+.ngu-delay-bar{width:100%;height:2px;background:var(--bg4);border-radius:1px;margin-top:4px;overflow:hidden}
+.ngu-delay-fill{height:100%;background:var(--warn);border-radius:1px;transition:width .5s linear}
+
+/* CHANGELOG DRAWER */
+.changelog-list{font-size:11px}
+.cl-ver{padding:10px 0 6px;border-bottom:1px solid var(--bg4);margin-bottom:6px}
+.cl-ver-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.cl-ver-num{font-weight:700;color:var(--acc);font-size:12px}
+.cl-ver-date{font-size:9px;color:var(--txt3)}
+.cl-diff{display:flex;gap:12px}
+.cl-add{color:var(--ok);font-size:10px}
+.cl-rem{color:var(--err);font-size:10px}
+.cl-notes{font-size:10px;color:var(--txt2);margin-top:4px;line-height:1.6}
+
+/* PROXY TEST OVERLAY */
+.test-overlay{position:fixed;inset:0;background:var(--bg);z-index:500;display:none;align-items:center;justify-content:center;flex-direction:column;gap:20px}
+.test-overlay.show{display:flex}
+.test-icon{font-size:48px;animation:test-spin 2s linear infinite}
+@keyframes test-spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.test-title{font-size:16px;font-weight:700;color:var(--acc);letter-spacing:.1em}
+.test-status{font-size:12px;color:var(--txt2);text-align:center;line-height:1.6;max-width:400px}
+.test-progress{width:320px;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-top:8px}
+.test-progress-fill{height:100%;background:linear-gradient(90deg,var(--acc2),var(--acc));border-radius:3px;width:0%;transition:width .3s}
+.test-results{margin-top:16px;display:flex;gap:16px;font-size:11px}
+.test-results span{display:flex;align-items:center;gap:6px}
+.test-results .alive{color:var(--ok)}
+.test-results .dead{color:var(--err)}
+.test-results .testing{color:var(--warn)}
+
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="logo">TRER<span> ·</span></div>
+  <div id="topStatus" style="font-size:10px;color:var(--txt3);display:none"></div>
+  <div class="topbar-acts">
+    <div class="icon-btn" id="btnHistory" title="History">⏱</div>
+    <div class="icon-btn" id="btnSettings" title="Settings">⚙</div>
+    <div class="icon-btn" id="btnRefresh" title="Refresh" onclick="location.reload()">↺</div>
+  </div>
+</div>
+
+<!-- SEARCH BAR -->
+<div class="searchbar">
+  <input type="search" id="qInput" placeholder="Enter search query…" autocomplete="off" autocorrect="off" spellcheck="false">
+  <button class="run-btn" id="runBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    RUN
+  </button>
+</div>
+
+<!-- WAVE PROGRESS -->
+<div class="wave-track" id="waveTrack">
+  <div class="eta-row">
+    <span id="etaLbl">Initializing…</span>
+    <span id="elapsedLbl"></span>
+  </div>
+  <div class="wave-row">
+    <span class="wave-lbl" id="w1lbl">WAVE 1</span>
+    <div class="wave-bar"><div class="wave-fill" id="w1fill"></div></div>
+    <span class="wave-stat" id="w1stat"></span>
+  </div>
+  <div class="wave-row">
+    <span class="wave-lbl" id="w2lbl">WAVE 2</span>
+    <div class="wave-bar"><div class="wave-fill w2" id="w2fill"></div></div>
+    <span class="wave-stat" id="w2stat"></span>
+  </div>
+  <div class="wave-row">
+    <span class="wave-lbl" id="w3lbl">WAVE 3</span>
+    <div class="wave-bar"><div class="wave-fill w3" id="w3fill"></div></div>
+    <span class="wave-stat" id="w3stat"></span>
+  </div>
+</div>
+
+<!-- STATUS LOG -->
+<div class="status-log" id="statusLog"></div>
+
+<!-- NGU HUNT BAR -->
+<div class="ngu-bar" id="nguBar">
+  <span class="ngu-icon">⟳</span>
+  <div style="flex:1">
+    <div class="ngu-text" id="nguText">Hunting…</div>
+    <div class="ngu-delay-bar"><div class="ngu-delay-fill" id="nguDelayFill" style="width:0%"></div></div>
+  </div>
+  <div class="ngu-attempt" id="nguAttempt"></div>
+</div>
+
+<!-- KEYWORDS -->
+<div class="keywords-section" id="kwSection">
+  <div class="sec-lbl">Expansion Terms</div>
+  <div class="chips" id="kwChips"></div>
+</div>
+
+<!-- RESULTS -->
+<div class="results-section" id="resultsSection">
+  <div class="result-count" id="resultCount">
+    <span></span>
+    <span id="sortLbl" style="cursor:pointer;color:var(--acc);font-size:10px" id="sortToggle">↓ relevance</span>
+  </div>
+  <div id="resultsList"></div>
+</div>
+
+<!-- EMPTY STATE -->
+<div class="empty-state" id="emptyState">
+  <div class="empty-icon">⌬</div>
+  <div class="empty-title">Top Relevance Engine Resolver</div>
+  <div class="empty-sub">3-wave semantic search expansion.<br>Type a query and press RUN.</div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<div class="bot-pad"></div>
+
+<!-- SETTINGS DRAWER -->
+<div class="drawer-overlay" id="settingsOverlay"></div>
+<div class="drawer" id="settingsDrawer">
+  <div class="drawer-handle"></div>
+  <div class="drawer-head">
+    <span class="drawer-title">SETTINGS</span>
+    <button class="drawer-close" id="settingsClose">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="setting-section">Search</div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Max expansion terms</div>
+        <div class="setting-sub">W1 output keywords (5–20)</div>
+      </div>
+      <input class="num-input" id="cfgMaxKw" type="number" min="5" max="20" value="15">
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Results per keyword</div>
+        <div class="setting-sub">W2 fetch count (1–10)</div>
+      </div>
+      <input class="num-input" id="cfgResPerKw" type="number" min="1" max="10" value="5">
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Final top results</div>
+        <div class="setting-sub">W3 output (5–50)</div>
+      </div>
+      <input class="num-input" id="cfgTopN" type="number" min="5" max="50" value="20">
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Request delay (ms)</div>
+        <div class="setting-sub">Throttle between queries (0–5000)</div>
+      </div>
+      <input class="num-input" id="cfgDelay" type="number" min="0" max="5000" step="100" value="600">
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Anti-SEO filter</div>
+        <div class="setting-sub">Penalize commercial/spam results</div>
+      </div>
+      <div class="toggle on" id="cfgAntiSeo"></div>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Domain diversity</div>
+        <div class="setting-sub">Avoid same-domain clustering</div>
+      </div>
+      <div class="toggle on" id="cfgDiversity"></div>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Auto retry on error</div>
+        <div class="setting-sub">Up to 3 retries with backoff</div>
+      </div>
+      <div class="toggle on" id="cfgRetry"></div>
+    </div>
+
+    <div class="setting-section">No-Give-Up Mode</div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Enable NGU</div>
+        <div class="setting-sub">Loop forever until success</div>
+      </div>
+      <div class="toggle" id="cfgNguEnabled"></div>
+    </div>
+    <div class="setting-row" id="nguDelayRow" style="display:none">
+      <div class="setting-info">
+        <div class="setting-lbl">NGU delay (ms)</div>
+        <div class="setting-sub">Base retry delay (0–10000)</div>
+      </div>
+      <input class="num-input" id="cfgNguDelay" type="number" min="0" max="10000" step="100" value="1000">
+    </div>
+    <div class="setting-row" id="nguRetriesRow" style="display:none">
+      <div class="setting-info">
+        <div class="setting-lbl">Proxy retries</div>
+        <div class="setting-sub">Attempts per proxy (1–10)</div>
+      </div>
+      <input class="num-input" id="cfgNguProxyRetries" type="number" min="1" max="10" value="3">
+    </div>
+
+    <div class="setting-section">Proxy</div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Pin to proxy</div>
+        <div class="setting-sub">Lock to one working proxy</div>
+      </div>
+      <select class="num-input" id="cfgPinnedProxy" style="width:auto;padding:5px 8px">
+        <option value="-1">Auto (cycle alive)</option>
+      </select>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Force retest proxies</div>
+        <div class="setting-sub">Ignore cache, test all now</div>
+      </div>
+      <button class="sm-btn" id="btnRetestProxies">RETEST</button>
+    </div>
+
+    <div class="setting-section">System</div>
+
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Changelog</div>
+        <div class="setting-sub">View version history</div>
+      </div>
+      <button class="sm-btn" id="openChangelog">VIEW</button>
+    </div>
+
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Debug console</div>
+        <div class="setting-sub">Runtime log viewer</div>
+      </div>
+      <button class="sm-btn" id="openDebug">OPEN</button>
+    </div>
+
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Clear history</div>
+        <div class="setting-sub">Remove all saved searches</div>
+      </div>
+      <button class="sm-btn" id="clearHistory">CLEAR</button>
+    </div>
+
+    <div style="text-align:center;padding-top:16px">
+      <span style="font-size:9px;color:var(--txt3)">TRER v1.7 · Three-Wave Semantic Resolver</span>
+    </div>
+  </div>
+</div>
+
+<!-- HISTORY DRAWER -->
+<div class="drawer-overlay" id="historyOverlay"></div>
+<div class="drawer" id="historyDrawer">
+  <div class="drawer-handle"></div>
+  <div class="drawer-head">
+    <span class="drawer-title">HISTORY</span>
+    <button class="drawer-close" id="historyClose">✕</button>
+  </div>
+  <div class="drawer-body" id="historyBody">
+    <div class="empty-state" style="padding:20px 0">
+      <div class="empty-icon">⏱</div>
+      <div class="empty-sub">No searches yet</div>
+    </div>
+  </div>
+</div>
+
+<!-- DEBUG DRAWER -->
+<div class="drawer-overlay" id="debugOverlay"></div>
+<div class="drawer" id="debugDrawer">
+  <div class="drawer-handle"></div>
+  <div class="drawer-head">
+    <span class="drawer-title">DEBUG CONSOLE</span>
+    <button class="drawer-close" id="debugClose">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="debug-acts">
+      <button class="sm-btn" id="clearDebug">CLEAR</button>
+      <button class="sm-btn" id="exportDebug">EXPORT</button>
+      <span style="font-size:9px;color:var(--txt3);margin-left:auto;align-self:center" id="debugCount">0 lines</span>
+    </div>
+    <div class="debug-body" id="debugBody"></div>
+  </div>
+</div>
+
+<!-- CHANGELOG DRAWER -->
+<div class="drawer-overlay" id="changelogOverlay"></div>
+<div class="drawer" id="changelogDrawer">
+  <div class="drawer-handle"></div>
+  <div class="drawer-head">
+    <span class="drawer-title">CHANGELOG</span>
+    <button class="drawer-close" id="changelogClose">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="changelog-list" id="changelogList"></div>
+  </div>
+</div>
+
+<!-- PROXY TEST OVERLAY -->
+<div class="test-overlay" id="testOverlay">
+  <div class="test-icon">⟳</div>
+  <div class="test-title">TESTING PROXIES</div>
+  <div class="test-status" id="testStatus">Initializing simultaneous proxy tests…</div>
+  <div class="test-progress">
+    <div class="test-progress-fill" id="testProgressFill"></div>
+  </div>
+  <div class="test-results">
+    <span class="alive">✓ <span id="testAliveCount">0</span> alive</span>
+    <span class="testing">◌ <span id="testTestingCount">0</span> testing</span>
+    <span class="dead">✗ <span id="testDeadCount">0</span> dead</span>
+  </div>
+</div>
+
+<script>
+const VER='1.7',VER_DATE='2026-02-19';
+const CHANGELOG=[
+  {v:'1.7',changes:'+L142,-L38,•P3~P8',notes:'NGU nested config, limits 5-20/1-10/5-50, anti-SEO 25+ patterns, 4-section UI, retest button, code dedup utilities'},
+  {v:'1.6',changes:'+L142,-L38,•P2~P4',notes:'Auto proxy test on start (simultaneous, random data), 3-day cache, version-aware, UI blocked until ready'},
+  {v:'1.5',changes:'+L218,-L24,•P2~P5',notes:'Smart proxy system (health check, pin-to-proxy, auto-skip dead), proxies reordered'},
+  {v:'1.4',changes:'+L156,-L43,•P2',notes:'NGU truly infinite (no unguarded throws), multi-strategy fetch (direct, HEAD, UA rotation, 404 fallback)'},
+  {v:'1.3',changes:'+L94,-L71,•P6~P7',notes:'W1 rebuilt: ac.duckduckgo.com autocomplete primary, Instant RelatedSearches, HTML related-searches'},
+  {v:'1.2',changes:'+L187,-L12,•P2~P3',notes:'No-Give-Up mode (adaptive 0-10s delay), self-URL relay, JSONP, per-run opId guards'},
+  {v:'1.0',changes:'+L1842',notes:'Initial release: 3-wave expansion, anti-SEO scoring, domain diversity'}
+];
+
+let cfg = {
+  maxKw:15,resPerKw:5,topN:20,delay:600,
+  antiSeo:true,diversity:true,retry:true,
+  ngu:{enabled:false,delay:1000,proxyRetries:3},
+  pinnedProxy:-1
+};
+let running=false;
+let sortMode='relevance';
+let lastResults=[];
+let elapsed=0,elapsedTimer=null;
+
+const escHtml=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const $=id=>document.getElementById(id);
+
+// ─── BRIDGE INTERFACE ────────────────────────────────────────
+// These functions are called from Java
+window.TRER_UI = {
+    updateConfig: (json) => {
+        cfg = JSON.parse(json);
+        syncUiFromCfg();
+    },
+    updateHistory: (json) => {
+        renderHistory(JSON.parse(json));
+    },
+    addStatusEntry: (type, msg) => {
+        statusMsg(type, msg);
+    },
+    updateWave: (n, state, pct, stat) => {
+        setWave(n, state, pct, stat);
+    },
+    setKeywords: (query, termsJson) => {
+        showKeywords(query, JSON.parse(termsJson));
+    },
+    setResults: (resultsJson, query) => {
+        const results = JSON.parse(resultsJson);
+        lastResults = results;
+        renderResults(results, query);
+    },
+    setRunning: (isRunning) => {
+        running = isRunning;
+        if (!running) {
+            clearInterval(elapsedTimer);
+            $('runBtn').disabled = false;
+            $('runBtn').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> RUN';
+            $('runBtn').onclick = runSearch;
+            $('nguBar').classList.remove('show');
+        } else {
+            $('runBtn').innerHTML = '<span class="pulsing">■</span> STOP';
+            $('runBtn').onclick = () => { TRERBridge.stopSearch(); };
+
+            elapsed = 0;
+            clearInterval(elapsedTimer);
+            elapsedTimer = setInterval(() => {
+                elapsed++;
+                $('elapsedLbl').textContent = elapsed + 's';
+            }, 1000);
+        }
+    },
+    updateEta: (msg) => {
+        $('etaLbl').textContent = msg;
+    },
+    showToast: (msg) => {
+        showToast(msg);
+    },
+    updateNgu: (show, text, attempt, pct) => {
+        $('nguBar').classList.toggle('show', show);
+        $('nguText').textContent = text;
+        $('nguAttempt').textContent = '#' + attempt;
+        $('nguDelayFill').style.width = pct + '%';
+    },
+    updateProxyTest: (show, status, pct, alive, testing, dead) => {
+        $('testOverlay').classList.toggle('show', show);
+        $('testStatus').textContent = status;
+        $('testProgressFill').style.width = pct + '%';
+        $('testAliveCount').textContent = alive;
+        $('testTestingCount').textContent = testing;
+        $('testDeadCount').textContent = dead;
+    },
+    logDebug: (lvl, msg, ts) => {
+        const b = $('debugBody');
+        const l = document.createElement('div');
+        l.className = 'debug-line';
+        l.innerHTML = `<span class="dl-ts">${ts}</span><span class="dl-lvl l-${lvl}">${lvl.toUpperCase()}</span><span class="dl-msg">${escHtml(String(msg))}</span>`;
+        b.appendChild(l);
+        b.scrollTop = b.scrollHeight;
+        document.getElementById('debugCount').textContent = b.children.length + ' lines';
+    }
+};
+
+function runSearch() {
+    const query = $('qInput').value.trim();
+    if (!query || running) return;
+
+    // Prepare UI for run
+    $('waveTrack').classList.add('show');
+    $('statusLog').classList.add('show');
+    $('statusLog').innerHTML = '';
+    $('kwSection').classList.remove('show');
+    $('resultsSection').classList.remove('show');
+    $('emptyState').style.display = 'none';
+    $('topStatus').style.display = 'inline';
+
+    // Reset waves
+    ['w1','w2','w3'].forEach(w=>{
+      $(w+'fill').style.width='0';
+      $(w+'fill').className=`wave-fill${w==='w2'?' w2':w==='w3'?' w3':''}`;
+      $(w+'lbl').className='wave-lbl';
+      $(w+'stat').textContent='';
+    });
+
+    TRERBridge.runSearch(query);
+}
+
+// ─── UI LOGIC (PORTED/ADAPTED) ───────────────────────────────
+
+function setWave(n, state, pct, statText) {
+  const lbl = $(`w${n}lbl`), fill = $(`w${n}fill`), stat = $(`w${n}stat`);
+  lbl.className = 'wave-lbl ' + (state === 'done' ? 'done' : 'active');
+  fill.style.width = pct + '%';
+  if (state === 'done') {
+    fill.classList.add('done');
+    stat.textContent = statText || '✓';
+  } else {
+    stat.textContent = pct + '%';
+  }
+}
+
+function statusMsg(type, msg) {
+  const log = $('statusLog');
+  const ts = new Date().toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const el = document.createElement('div');
+  el.className = `status-entry ${type === 'ok' ? 'ok' : type === 'err' ? 'err' : type === 'warn' ? 'warn' : 'info'}`;
+  el.innerHTML = `<span class="ts">${ts}</span><span class="msg">${escHtml(msg)}</span>`;
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+  $('topStatus').textContent = msg.slice(0, 40) + (msg.length > 40 ? '…' : '');
+}
+
+function showKeywords(query, terms) {
+  const chips = $('kwChips');
+  chips.innerHTML = '';
+  const oc = document.createElement('div');
+  oc.className = 'chip kw-orig';
+  oc.innerHTML = `<span>${escHtml(query)}</span><span class="chip-score">QUERY</span>`;
+  chips.appendChild(oc);
+
+  terms.forEach((t, i) => {
+    const c = document.createElement('div');
+    const cls = i < 3 ? 'kw-hi' : i < 6 ? 'kw-md' : 'kw-lo';
+    c.className = `chip ${cls}`;
+    c.innerHTML = `<span>${escHtml(t.term)}</span><span class="chip-score">${t.tag || t.score.toFixed(1)}</span>`;
+    chips.appendChild(c);
+  });
+  $('kwSection').classList.add('show');
+}
+
+function renderResults(results, query) {
+  const list = $('resultsList');
+  list.innerHTML = '';
+  if (!results.length) {
+    $('emptyState').style.display = 'block';
+    $('emptyState').querySelector('.empty-icon').textContent = '○';
+    $('emptyState').querySelector('.empty-title').textContent = 'No results found';
+    return;
+  }
+  $('resultsSection').classList.add('show');
+  $('resultCount').querySelector('span').textContent = `${results.length} results`;
+
+  results.forEach((r, i) => {
+    const card = document.createElement('a');
+    card.className = 'result-card';
+    card.href = r.url;
+    card.onclick = (e) => { e.preventDefault(); TRERBridge.openUrl(r.url); };
+
+    const rankCls = i < 3 ? 'rc-rank top3' : 'rc-rank';
+    card.innerHTML = `
+      <div class="${rankCls}">#${i + 1}</div>
+      <div class="rc-title">${escHtml(r.title)}</div>
+      <div class="rc-url">${escHtml(r.domain)}</div>
+      ${r.snippet ? `<div class="rc-snippet">${escHtml(r.snippet.slice(0, 140))}</div>` : ''}
+      <div class="rc-meta">
+        <span class="rc-badge score">⬆ ${r.score}</span>
+        <span class="rc-badge waves">${escHtml(r.waveStr)}</span>
+        <span class="rc-badge domain">${escHtml(r.domain.split('.')[0])}</span>
+      </div>`;
+    list.appendChild(card);
+  });
+}
+
+function showToast(msg, dur = 3000) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+
+function renderHistory(histArr) {
+  const body = $('historyBody');
+  body.innerHTML = '';
+  if (!histArr || !histArr.length) {
+    body.innerHTML = '<div class="empty-state" style="padding:20px 0"><div class="empty-icon">⏱</div><div class="empty-sub">No searches yet</div></div>';
+    return;
+  }
+  histArr.forEach((h, i) => {
+    const el = document.createElement('div');
+    el.className = 'hist-item';
+    const dt = new Date(h.ts).toLocaleDateString('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    el.innerHTML = `<span class="hist-q">${escHtml(h.q)}</span><span class="hist-meta">${h.count} results · ${dt}</span><button class="hist-del" data-i="${i}">✕</button>`;
+    el.onclick = e => {
+      if (e.target.classList.contains('hist-del')) return;
+      $('qInput').value = h.q;
+      closeDrawer('history');
+      runSearch();
+    };
+    body.appendChild(el);
+  });
+  body.querySelectorAll('.hist-del').forEach(btn => {
+    btn.onclick = e => {
+      e.stopPropagation();
+      TRERBridge.deleteHistory(+btn.dataset.i);
+    };
+  });
+}
+
+function syncUiFromCfg() {
+  $('cfgMaxKw').value = cfg.maxKw;
+  $('cfgResPerKw').value = cfg.resPerKw;
+  $('cfgTopN').value = cfg.topN;
+  $('cfgDelay').value = cfg.delay;
+  $('cfgNguDelay').value = cfg.ngu.delay;
+  $('cfgNguProxyRetries').value = cfg.ngu.proxyRetries;
+  $('cfgAntiSeo').classList.toggle('on', !!cfg.antiSeo);
+  $('cfgDiversity').classList.toggle('on', !!cfg.diversity);
+  $('cfgRetry').classList.toggle('on', !!cfg.retry);
+  $('cfgNguEnabled').classList.toggle('on', !!cfg.ngu.enabled);
+  $('nguDelayRow').style.display = cfg.ngu.enabled ? '' : 'none';
+  $('nguRetriesRow').style.display = cfg.ngu.enabled ? '' : 'none';
+  // Proxy dropdown would be populated here if needed, but Java handles proxies now
+}
+
+function updateCfg(path, val) {
+    const keys = path.split('.');
+    let obj = cfg;
+    for (let i = 0; i < keys.length - 1; i++) obj = obj[keys[i]];
+    obj[keys[keys.length - 1]] = val;
+    TRERBridge.saveConfig(JSON.stringify(cfg));
+}
+
+// ─── EVENT HANDLERS ──────────────────────────────────────────
+
+const openDrawer = name => { $(`${name}Overlay`).classList.add('open'); $(`${name}Drawer`).classList.add('open'); document.body.style.overflow = 'hidden'; };
+const closeDrawer = name => { $(`${name}Overlay`).classList.remove('open'); $(`${name}Drawer`).classList.remove('open'); document.body.style.overflow = ''; };
+
+['settings', 'history', 'debug', 'changelog'].forEach(name => {
+    $(`${name}Overlay`).onclick = () => closeDrawer(name);
+    $(`${name}Close`).onclick = () => closeDrawer(name);
+});
+
+$('btnSettings').onclick = () => { openDrawer('settings'); };
+$('btnHistory').onclick = () => { TRERBridge.loadHistory(); openDrawer('history'); };
+$('openDebug').onclick = () => { closeDrawer('settings'); openDrawer('debug'); };
+$('openChangelog').onclick = () => { renderChangelog(); closeDrawer('settings'); openDrawer('changelog'); };
+$('clearHistory').onclick = () => { TRERBridge.clearHistory(); closeDrawer('settings'); };
+$('clearDebug').onclick = () => { $('debugBody').innerHTML = ''; $('debugCount').textContent = '0 lines'; };
+$('btnRefresh').onclick = () => { location.reload(); };
+
+['cfgAntiSeo', 'cfgDiversity', 'cfgRetry'].forEach(id => {
+    const path = { cfgAntiSeo: 'antiSeo', cfgDiversity: 'diversity', cfgRetry: 'retry' }[id];
+    $(id).onclick = function () {
+        const v = !cfg[path];
+        updateCfg(path, v);
+        this.classList.toggle('on', v);
+    };
+});
+
+$('cfgNguEnabled').onclick = function () {
+    const v = !cfg.ngu.enabled;
+    updateCfg('ngu.enabled', v);
+    this.classList.toggle('on', v);
+    $('nguDelayRow').style.display = v ? '' : 'none';
+    $('nguRetriesRow').style.display = v ? '' : 'none';
+};
+
+['cfgMaxKw', 'cfgResPerKw', 'cfgTopN', 'cfgDelay', 'cfgNguDelay', 'cfgNguProxyRetries'].forEach(id => {
+    const pathMap = {
+        cfgMaxKw: 'maxKw', cfgResPerKw: 'resPerKw', cfgTopN: 'topN', cfgDelay: 'delay',
+        cfgNguDelay: 'ngu.delay', cfgNguProxyRetries: 'ngu.proxyRetries'
+    };
+    $(id).onchange = function () {
+        updateCfg(pathMap[id], +this.value);
+    };
+});
+
+$('btnRetestProxies').onclick = () => { TRERBridge.retestProxies(); closeDrawer('settings'); };
+$('exportDebug').onclick = () => { TRERBridge.exportDebug(); };
+
+function renderChangelog() {
+    const list = $('changelogList');
+    list.innerHTML = '';
+    CHANGELOG.forEach(c => {
+        const el = document.createElement('div');
+        el.className = 'cl-ver';
+        el.innerHTML = `
+      <div class="cl-ver-head">
+        <span class="cl-ver-num">v${c.v}</span>
+        <span class="cl-ver-date">${c.changes || ''}</span>
+      </div>
+      <div class="cl-notes">${escHtml(c.notes)}</div>`;
+        list.appendChild(el);
+    });
+}
+
+$('runBtn').onclick = runSearch;
+$('qInput').onkeydown = e => { if (e.key === 'Enter') runSearch(); };
+
+// Initial load
+window.onload = () => {
+    if (typeof TRERBridge !== 'undefined') {
+        TRERBridge.init();
+    }
+};
+</script>
+</body>
+</html>
