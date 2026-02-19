@@ -26,26 +26,8 @@ public class Networking {
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0"
     };
 
-    public static String fetch(String urlString, String proxyPattern, int attempt) throws Exception {
-        String targetUrl = urlString;
-        if (proxyPattern != null) {
-            // Handle specific proxy patterns from the original HTML
-            if (proxyPattern.contains("api.allorigins.win")) {
-                targetUrl = "https://api.allorigins.win/raw?url=" + java.net.URLEncoder.encode(urlString, "UTF-8");
-            } else if (proxyPattern.contains("corsproxy.io")) {
-                targetUrl = "https://corsproxy.io/?" + java.net.URLEncoder.encode(urlString, "UTF-8");
-            } else if (proxyPattern.contains("thingproxy.freeboard.io")) {
-                targetUrl = "https://thingproxy.freeboard.io/fetch/" + urlString;
-            } else if (proxyPattern.contains("cors-anywhere.herokuapp.com")) {
-                targetUrl = "https://cors-anywhere.herokuapp.com/" + urlString;
-            } else {
-                targetUrl = proxyPattern.replace("${u}", java.net.URLEncoder.encode(urlString, "UTF-8"))
-                                        .replace("${encU}", java.net.URLEncoder.encode(urlString, "UTF-8"))
-                                        .replace("${rawU}", urlString);
-            }
-        }
-
-        URL url = new URL(targetUrl);
+    public static String fetch(String urlString, int attempt) throws Exception {
+        URL url = new URL(urlString);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("GET");
         conn.setRequestProperty("User-Agent", USER_AGENTS[attempt % USER_AGENTS.length]);
@@ -83,7 +65,105 @@ public class Networking {
         }
     }
 
+    public static List<Models.SearchResult> parseDDGLiteHtml(String html, int maxResults) {
+        List<Models.SearchResult> results = new ArrayList<>();
+        Document doc = Jsoup.parse(html);
+
+        Elements links = doc.select("a.result-link");
+        for (Element link : links) {
+            String title = link.text().trim();
+            String url = link.attr("href");
+
+            if (url.startsWith("//")) url = "https:" + url;
+            if (url.contains("/l/?") || url.contains("/l?")) {
+                try {
+                    int start = url.indexOf("uddg=");
+                    if (start != -1) {
+                        int end = url.indexOf("&", start);
+                        String encoded = (end == -1) ? url.substring(start + 5) : url.substring(start + 5, end);
+                        url = URLDecoder.decode(encoded, "UTF-8");
+                    }
+                } catch (Exception e) {}
+            }
+
+            if (!url.startsWith("http") || url.contains("duckduckgo.com")) continue;
+
+            // Snippet is usually in the next row or sibling
+            String snippet = "";
+            Element row = link.parent();
+            while (row != null && !row.tagName().equals("tr")) {
+                row = row.parent();
+            }
+            if (row != null) {
+                Element nextRow = row.nextElementSibling();
+                if (nextRow != null) {
+                    Element snippetEl = nextRow.select(".result-snippet").first();
+                    if (snippetEl != null) {
+                        snippet = snippetEl.text().trim();
+                    }
+                }
+            }
+
+            String domain = getDomain(url);
+            results.add(new Models.SearchResult(title, url, domain, snippet));
+            if (results.size() >= maxResults) break;
+        }
+
+        return results;
+    }
+
+    public static List<Models.SearchResult> parseGoogleLiteHtml(String html, int maxResults) {
+        List<Models.SearchResult> results = new ArrayList<>();
+        Document doc = Jsoup.parse(html);
+
+        // Google Lite (gbv=1) often uses 'div.g' or just nested divs
+        Elements cards = doc.select("div.g, .ZIN6ec");
+        if (cards.isEmpty()) {
+            // Fallback: look for results in a more generic way
+            cards = doc.select("div:has(> h3)");
+        }
+
+        for (Element card : cards) {
+            Element titleEl = card.select("h3").first();
+            if (titleEl == null) continue;
+
+            Element linkEl = card.select("a").first();
+            if (linkEl == null) continue;
+
+            String title = titleEl.text();
+            String url = linkEl.attr("href");
+
+            // Google wraps links in /url?q=...
+            if (url.startsWith("/url?")) {
+                try {
+                    int start = url.indexOf("q=");
+                    if (start != -1) {
+                        int end = url.indexOf("&", start);
+                        String encoded = (end == -1) ? url.substring(start + 2) : url.substring(start + 2, end);
+                        url = URLDecoder.decode(encoded, "UTF-8");
+                    }
+                } catch (Exception e) {}
+            }
+
+            if (!url.startsWith("http") || url.contains("google.com")) continue;
+
+            // Snippet is usually a div with class 'VwiC3b' or similar,
+            // but in Lite it's often simpler.
+            String snippet = "";
+            Element snippetEl = card.select("div > div > span").last();
+            if (snippetEl == null) snippetEl = card.select(".VwiC3b, .st").first();
+            if (snippetEl != null) snippet = snippetEl.text();
+
+            String domain = getDomain(url);
+            results.add(new Models.SearchResult(title, url, domain, snippet));
+            if (results.size() >= maxResults) break;
+        }
+
+        return results;
+    }
+
     public static List<Models.SearchResult> parseDDGHtml(String html, int maxResults) {
+        // Keep for backward compatibility or if needed
         List<Models.SearchResult> results = new ArrayList<>();
         Document doc = Jsoup.parse(html);
 
@@ -124,37 +204,13 @@ public class Networking {
             }
             if (results.size() >= maxResults) break;
         }
-
-        if (results.isEmpty()) {
-            for (Element a : doc.select("a[href]")) {
-                String url = a.attr("href");
-                if (url.startsWith("//")) url = "https:" + url;
-                if (url.contains("/l/?") || url.contains("/l?")) {
-                    try {
-                        int start = url.indexOf("uddg=");
-                        if (start != -1) {
-                            int end = url.indexOf("&", start);
-                            String encoded = (end == -1) ? url.substring(start + 5) : url.substring(start + 5, end);
-                            url = URLDecoder.decode(encoded, "UTF-8");
-                        }
-                    } catch (Exception e) {}
-                }
-                if (!url.startsWith("http") || url.contains("duckduckgo.com")) continue;
-                String title = a.text().trim();
-                if (title.length() < 5) continue;
-                String domain = getDomain(url);
-                results.add(new Models.SearchResult(title, url, domain, ""));
-                if (results.size() >= maxResults) break;
-            }
-        }
-
         return results;
     }
 
     public static List<String> parseRelatedSearches(String html) {
         List<String> related = new ArrayList<>();
         Document doc = Jsoup.parse(html);
-        Elements links = doc.select(".result--more .result__a, .related-searches__link, .results_links_more a, .zci__related-searches a");
+        Elements links = doc.select(".result--more .result__a, .related-searches__link, .results_links_more a, .zci__related-searches a, .related-search, a[href*='/search?q=']");
         for (Element a : links) {
             String t = a.text().trim();
             if (!t.isEmpty() && t.length() > 2 && t.length() < 80) {
