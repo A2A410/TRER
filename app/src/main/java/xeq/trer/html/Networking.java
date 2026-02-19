@@ -6,6 +6,7 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 import java.io.BufferedReader;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -28,9 +29,6 @@ public class Networking {
     public static String fetch(String urlString, String proxyPattern, int attempt) throws Exception {
         String targetUrl = urlString;
         if (proxyPattern != null) {
-            targetUrl = proxyPattern.replace("${u}", java.net.URLEncoder.encode(urlString, "UTF-8"))
-                                    .replace("${encU}", java.net.URLEncoder.encode(urlString, "UTF-8"))
-                                    .replace("${rawU}", urlString);
             // Handle specific proxy patterns from the original HTML
             if (proxyPattern.contains("api.allorigins.win")) {
                 targetUrl = "https://api.allorigins.win/raw?url=" + java.net.URLEncoder.encode(urlString, "UTF-8");
@@ -40,6 +38,10 @@ public class Networking {
                 targetUrl = "https://thingproxy.freeboard.io/fetch/" + urlString;
             } else if (proxyPattern.contains("cors-anywhere.herokuapp.com")) {
                 targetUrl = "https://cors-anywhere.herokuapp.com/" + urlString;
+            } else {
+                targetUrl = proxyPattern.replace("${u}", java.net.URLEncoder.encode(urlString, "UTF-8"))
+                                        .replace("${encU}", java.net.URLEncoder.encode(urlString, "UTF-8"))
+                                        .replace("${rawU}", urlString);
             }
         }
 
@@ -47,21 +49,37 @@ public class Networking {
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("GET");
         conn.setRequestProperty("User-Agent", USER_AGENTS[attempt % USER_AGENTS.length]);
+        conn.setRequestProperty("Accept", "text/html,application/json,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+        conn.setRequestProperty("Accept-Language", "en-US,en;q=0.5");
+        conn.setRequestProperty("Referer", "https://duckduckgo.com/");
         conn.setConnectTimeout(10000);
         conn.setReadTimeout(10000);
+        conn.setInstanceFollowRedirects(true);
 
         int responseCode = conn.getResponseCode();
-        if (responseCode == HttpURLConnection.HTTP_OK) {
-            BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+        boolean isSuccess = responseCode == HttpURLConnection.HTTP_OK;
+
+        InputStream stream = isSuccess ? conn.getInputStream() : conn.getErrorStream();
+        if (stream == null && !isSuccess) {
+            throw new Exception("HTTP " + responseCode);
+        }
+
+        StringBuilder response = new StringBuilder();
+        if (stream != null) {
+            BufferedReader in = new BufferedReader(new InputStreamReader(stream));
             String inputLine;
-            StringBuilder response = new StringBuilder();
             while ((inputLine = in.readLine()) != null) {
                 response.append(inputLine);
             }
             in.close();
+        }
+
+        if (isSuccess) {
             return response.toString();
         } else {
-            throw new Exception("HTTP " + responseCode);
+            String errorBody = response.toString();
+            if (errorBody.length() > 200) errorBody = errorBody.substring(0, 200) + "...";
+            throw new Exception("HTTP " + responseCode + (errorBody.isEmpty() ? "" : ": " + errorBody));
         }
     }
 
@@ -107,7 +125,29 @@ public class Networking {
             if (results.size() >= maxResults) break;
         }
 
-        // Fallback for related searches
+        if (results.isEmpty()) {
+            for (Element a : doc.select("a[href]")) {
+                String url = a.attr("href");
+                if (url.startsWith("//")) url = "https:" + url;
+                if (url.contains("/l/?") || url.contains("/l?")) {
+                    try {
+                        int start = url.indexOf("uddg=");
+                        if (start != -1) {
+                            int end = url.indexOf("&", start);
+                            String encoded = (end == -1) ? url.substring(start + 5) : url.substring(start + 5, end);
+                            url = URLDecoder.decode(encoded, "UTF-8");
+                        }
+                    } catch (Exception e) {}
+                }
+                if (!url.startsWith("http") || url.contains("duckduckgo.com")) continue;
+                String title = a.text().trim();
+                if (title.length() < 5) continue;
+                String domain = getDomain(url);
+                results.add(new Models.SearchResult(title, url, domain, ""));
+                if (results.size() >= maxResults) break;
+            }
+        }
+
         return results;
     }
 

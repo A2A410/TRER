@@ -248,13 +248,41 @@ public class TREREngine {
         return penalty;
     }
 
+    private static final String[] PROXIES = {
+            "https://api.allorigins.win/raw?url=${u}",
+            "https://corsproxy.io/?${u}",
+            "https://thingproxy.freeboard.io/fetch/${rawU}",
+            "https://cors-anywhere.herokuapp.com/${rawU}"
+    };
+
     private String fetchProxy(String url, int attempt) throws Exception {
         if (cfg.ngu.enabled) {
             return fetchNgu(url);
         }
-        // Simplified: no proxies in native unless requested, but let's just do direct for now
-        // to bypass CORS which was the original issue.
-        return Networking.fetch(url, null, attempt);
+
+        // Try pinned proxy if set
+        if (cfg.pinnedProxy >= 0 && cfg.pinnedProxy < PROXIES.length) {
+            return Networking.fetch(url, PROXIES[cfg.pinnedProxy], attempt);
+        }
+
+        // Try direct first
+        try {
+            return Networking.fetch(url, null, attempt);
+        } catch (Exception e) {
+            if (!cfg.retry) throw e;
+            callback.logDebug("warn", "Direct fetch failed, trying proxies: " + e.getMessage());
+
+            // Try each proxy
+            for (int i = 0; i < PROXIES.length; i++) {
+                if (abortFlag) throw new Exception("Aborted");
+                try {
+                    return Networking.fetch(url, PROXIES[i], attempt + i + 1);
+                } catch (Exception ex) {
+                    callback.logDebug("warn", "Proxy " + i + " failed: " + ex.getMessage());
+                }
+            }
+            throw e;
+        }
     }
 
     private String fetchNgu(String url) throws Exception {
@@ -262,7 +290,15 @@ public class TREREngine {
         while (!abortFlag) {
             attempt++;
             try {
-                String result = Networking.fetch(url, null, attempt);
+                String result;
+                if (cfg.pinnedProxy >= 0 && cfg.pinnedProxy < PROXIES.length) {
+                    result = Networking.fetch(url, PROXIES[cfg.pinnedProxy], attempt);
+                } else if (attempt == 1) {
+                    result = Networking.fetch(url, null, attempt);
+                } else {
+                    int pIdx = (attempt - 2) % PROXIES.length;
+                    result = Networking.fetch(url, PROXIES[pIdx], attempt);
+                }
                 callback.logDebug("info", "Fetch successful on attempt " + attempt);
                 return result;
             } catch (Exception e) {
