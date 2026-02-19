@@ -1,0 +1,1842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>TRER · Top Relevance Engine Resolver</title>
+<style>
+:root{
+--bg:#0a0c10;--bg2:#111318;--bg3:#181c24;--bg4:#1e232e;
+--acc:#00e5ff;--acc2:#7c4dff;--acc3:#00bfa5;
+--warn:#ffab00;--err:#ff5252;--ok:#69f0ae;
+--txt:#e0e6f0;--txt2:#8a95a8;--txt3:#4a5568;
+--rad:8px;--rad2:12px;--rad3:16px;
+--fnt:'IBM Plex Mono',monospace;
+--shadow:0 2px 16px #00000080;
+--glow:0 0 12px #00e5ff40;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--bg);color:var(--txt);font-family:var(--fnt);font-size:13px;overflow-x:hidden}
+body{display:flex;flex-direction:column;max-width:520px;margin:0 auto;min-height:100vh}
+
+/* TOP BAR */
+.topbar{display:flex;align-items:center;gap:8px;padding:12px 14px 0;position:sticky;top:0;z-index:100;background:var(--bg);border-bottom:1px solid #ffffff08}
+.logo{font-size:11px;font-weight:700;letter-spacing:.15em;color:var(--acc);text-transform:uppercase;white-space:nowrap}
+.logo span{color:var(--txt3)}
+.topbar-acts{display:flex;gap:6px;margin-left:auto}
+.icon-btn{width:32px;height:32px;border-radius:var(--rad);background:var(--bg3);border:1px solid #ffffff10;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--txt2);font-size:14px;transition:.15s}
+.icon-btn:active{background:var(--bg4);transform:scale(.95)}
+.icon-btn.active{color:var(--acc);border-color:var(--acc)40}
+
+/* SEARCH BAR */
+.searchbar{padding:12px 14px;display:flex;gap:8px;align-items:center}
+.searchbar input{flex:1;background:var(--bg3);border:1px solid #ffffff15;border-radius:var(--rad2);padding:10px 14px;color:var(--txt);font-family:var(--fnt);font-size:13px;outline:none;transition:.2s}
+.searchbar input:focus{border-color:var(--acc)60;box-shadow:var(--glow)}
+.searchbar input::placeholder{color:var(--txt3)}
+.run-btn{min-width:72px;height:40px;background:linear-gradient(135deg,var(--acc2),var(--acc));border:none;border-radius:var(--rad2);color:#000;font-family:var(--fnt);font-size:12px;font-weight:700;letter-spacing:.05em;cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:center;gap:6px}
+.run-btn:active{opacity:.8;transform:scale(.97)}
+.run-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.run-btn svg{width:14px;height:14px}
+
+/* WAVE PROGRESS */
+.wave-track{padding:0 14px 10px;display:none}
+.wave-track.show{display:block}
+.wave-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.wave-lbl{font-size:10px;font-weight:700;letter-spacing:.1em;min-width:58px;color:var(--txt3)}
+.wave-lbl.active{color:var(--acc)}
+.wave-lbl.done{color:var(--ok)}
+.wave-bar{flex:1;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden}
+.wave-fill{height:100%;width:0;border-radius:2px;transition:width .4s ease;background:var(--acc)}
+.wave-fill.w2{background:var(--acc2)}
+.wave-fill.w3{background:var(--acc3)}
+.wave-fill.done{background:var(--ok)}
+.wave-stat{font-size:10px;color:var(--txt3);min-width:36px;text-align:right}
+.eta-row{display:flex;justify-content:space-between;font-size:10px;color:var(--txt3);margin-bottom:4px}
+
+/* STATUS LOG */
+.status-log{padding:0 14px;margin-bottom:8px;max-height:80px;overflow-y:auto;display:none}
+.status-log.show{display:block}
+.status-entry{font-size:10px;color:var(--txt3);line-height:1.6;display:flex;gap:6px;align-items:flex-start}
+.status-entry .ts{color:var(--txt3);opacity:.5;min-width:28px;font-size:9px}
+.status-entry.ok .msg{color:var(--ok)}
+.status-entry.warn .msg{color:var(--warn)}
+.status-entry.err .msg{color:var(--err)}
+.status-entry.info .msg{color:var(--acc)}
+
+/* KEYWORDS CHIPS */
+.keywords-section{padding:0 14px 10px;display:none}
+.keywords-section.show{display:block}
+.sec-lbl{font-size:9px;letter-spacing:.12em;color:var(--txt3);text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.sec-lbl::after{content:'';flex:1;height:1px;background:var(--bg4)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:4px 10px;border-radius:20px;font-size:10px;font-weight:600;letter-spacing:.04em;border:1px solid;cursor:default;display:flex;align-items:center;gap:5px;transition:.15s}
+.chip:active{transform:scale(.96)}
+.chip-score{font-size:9px;opacity:.7}
+.chip.kw-hi{background:#00e5ff15;border-color:#00e5ff40;color:var(--acc)}
+.chip.kw-md{background:#7c4dff10;border-color:#7c4dff30;color:#b47aff}
+.chip.kw-lo{background:#ffffff06;border-color:#ffffff15;color:var(--txt2)}
+.chip.kw-orig{background:#00bfa515;border-color:#00bfa540;color:var(--acc3)}
+
+/* RESULTS */
+.results-section{padding:0 14px;display:none;flex:1}
+.results-section.show{display:block}
+.result-count{font-size:10px;color:var(--txt3);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.result-card{background:var(--bg2);border:1px solid #ffffff0a;border-radius:var(--rad2);padding:12px 14px;margin-bottom:8px;transition:.2s;cursor:pointer;display:block;text-decoration:none;color:inherit;position:relative;overflow:hidden}
+.result-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--acc);opacity:0;transition:.2s}
+.result-card:active{background:var(--bg3)}
+.result-card:active::before{opacity:1}
+.rc-rank{position:absolute;top:10px;right:12px;font-size:9px;font-weight:700;color:var(--txt3);letter-spacing:.05em}
+.rc-rank.top3{color:var(--warn)}
+.rc-title{font-size:12px;font-weight:600;color:var(--txt);line-height:1.4;margin-bottom:4px;padding-right:40px}
+.rc-url{font-size:9px;color:var(--acc);opacity:.7;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc-snippet{font-size:10px;color:var(--txt2);line-height:1.5}
+.rc-meta{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.rc-badge{font-size:9px;padding:2px 7px;border-radius:10px;border:1px solid;letter-spacing:.04em}
+.rc-badge.waves{background:#00e5ff08;border-color:#00e5ff20;color:var(--acc)}
+.rc-badge.score{background:#69f0ae08;border-color:#69f0ae20;color:var(--ok)}
+.rc-badge.domain{background:#7c4dff08;border-color:#7c4dff20;color:#b47aff}
+
+/* EMPTY / ERROR */
+.empty-state{padding:40px 14px;text-align:center}
+.empty-icon{font-size:36px;margin-bottom:12px;opacity:.3}
+.empty-title{font-size:13px;font-weight:600;color:var(--txt2);margin-bottom:6px}
+.empty-sub{font-size:11px;color:var(--txt3);line-height:1.6}
+
+/* SETTINGS DRAWER */
+.drawer-overlay{position:fixed;inset:0;background:#00000080;z-index:200;opacity:0;pointer-events:none;transition:.25s}
+.drawer-overlay.open{opacity:1;pointer-events:all}
+.drawer{position:fixed;bottom:0;left:50%;transform:translate(-50%,100%);width:100%;max-width:520px;background:var(--bg2);border-radius:var(--rad3) var(--rad3) 0 0;z-index:201;transition:transform .3s cubic-bezier(.4,0,.2,1);padding:0 0 32px;max-height:85vh;overflow-y:auto}
+.drawer.open{transform:translate(-50%,0)}
+.drawer-handle{width:36px;height:4px;background:var(--bg4);border-radius:2px;margin:10px auto 16px}
+.drawer-head{padding:0 16px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #ffffff08}
+.drawer-title{font-size:13px;font-weight:700;color:var(--txt);letter-spacing:.08em}
+.drawer-close{width:28px;height:28px;border-radius:50%;background:var(--bg3);border:none;color:var(--txt2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px}
+.drawer-body{padding:16px}
+.setting-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px}
+.setting-info{flex:1}
+.setting-lbl{font-size:12px;font-weight:600;color:var(--txt)}
+.setting-sub{font-size:10px;color:var(--txt3);margin-top:2px}
+.toggle{width:40px;height:22px;border-radius:11px;background:var(--bg4);border:1px solid #ffffff15;cursor:pointer;position:relative;transition:.2s;flex-shrink:0}
+.toggle.on{background:var(--acc2);border-color:var(--acc2)}
+.toggle::after{content:'';width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:.2s}
+.toggle.on::after{left:20px}
+.num-input{width:52px;background:var(--bg3);border:1px solid #ffffff15;border-radius:var(--rad);padding:5px 8px;color:var(--txt);font-family:var(--fnt);font-size:12px;text-align:center}
+.num-input:focus{outline:none;border-color:var(--acc)50}
+.range-lbl{font-size:11px;color:var(--txt2);min-width:28px;text-align:right}
+.setting-section{font-size:9px;letter-spacing:.15em;color:var(--txt3);text-transform:uppercase;margin:20px 0 10px;display:flex;align-items:center;gap:8px}
+.setting-section::after{content:'';flex:1;height:1px;background:var(--bg4)}
+
+/* DEBUG DRAWER */
+.debug-body{padding:12px;background:var(--bg);border-radius:var(--rad);max-height:320px;overflow-y:auto;font-size:10px;line-height:1.7}
+.debug-line{display:flex;gap:6px;align-items:flex-start;border-bottom:1px solid #ffffff05;padding:2px 0}
+.debug-line .dl-ts{color:var(--txt3);opacity:.5;min-width:40px;font-size:9px;flex-shrink:0}
+.debug-line .dl-lvl{min-width:36px;font-size:9px;font-weight:700;flex-shrink:0}
+.debug-line .dl-lvl.l-log{color:var(--txt2)}
+.debug-line .dl-lvl.l-info{color:var(--acc)}
+.debug-line .dl-lvl.l-warn{color:var(--warn)}
+.debug-line .dl-lvl.l-error{color:var(--err)}
+.debug-line .dl-msg{color:var(--txt);word-break:break-all}
+.debug-acts{display:flex;gap:8px;margin-bottom:10px}
+.sm-btn{padding:5px 12px;border-radius:var(--rad);background:var(--bg3);border:1px solid #ffffff15;color:var(--txt2);font-family:var(--fnt);font-size:10px;cursor:pointer}
+.sm-btn:active{background:var(--bg4)}
+
+/* HISTORY DRAWER */
+.hist-item{background:var(--bg3);border-radius:var(--rad);padding:10px 12px;margin-bottom:8px;cursor:pointer;border:1px solid #ffffff08;display:flex;align-items:center;gap:10px}
+.hist-item:active{background:var(--bg4)}
+.hist-q{font-size:12px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hist-meta{font-size:9px;color:var(--txt3)}
+.hist-del{width:26px;height:26px;border-radius:50%;background:var(--bg4);border:none;color:var(--err);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+
+/* RETRY TOAST */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--bg3);border:1px solid var(--warn)40;border-radius:var(--rad2);padding:10px 16px;font-size:11px;color:var(--warn);display:none;z-index:300;white-space:nowrap;box-shadow:var(--shadow)}
+.toast.show{display:block}
+
+/* BOTTOM PADDING */
+.bot-pad{height:20px}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
+
+/* LOADER PULSE */
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+.pulsing{animation:pulse 1.2s ease infinite}
+
+/* NO-GIVE-UP HUNT BAR */
+.ngu-bar{display:none;margin:0 14px 8px;background:var(--bg3);border:1px solid var(--warn)30;border-radius:var(--rad);padding:7px 12px;gap:10px;align-items:center}
+.ngu-bar.show{display:flex}
+.ngu-icon{font-size:13px;animation:ngu-spin 1.5s linear infinite}
+@keyframes ngu-spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.ngu-text{flex:1;font-size:10px;color:var(--warn);line-height:1.4}
+.ngu-attempt{font-size:9px;color:var(--txt3);text-align:right;white-space:nowrap}
+.ngu-delay-bar{width:100%;height:2px;background:var(--bg4);border-radius:1px;margin-top:4px;overflow:hidden}
+.ngu-delay-fill{height:100%;background:var(--warn);border-radius:1px;transition:width .5s linear}
+
+/* CHANGELOG DRAWER */
+.changelog-list{font-size:11px}
+.cl-ver{padding:10px 0 6px;border-bottom:1px solid var(--bg4);margin-bottom:6px}
+.cl-ver-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.cl-ver-num{font-weight:700;color:var(--acc);font-size:12px}
+.cl-ver-date{font-size:9px;color:var(--txt3)}
+.cl-diff{display:flex;gap:12px}
+.cl-add{color:var(--ok);font-size:10px}
+.cl-rem{color:var(--err);font-size:10px}
+.cl-notes{font-size:10px;color:var(--txt2);margin-top:4px;line-height:1.6}
+
+/* PROXY TEST OVERLAY */
+.test-overlay{position:fixed;inset:0;background:var(--bg);z-index:500;display:none;align-items:center;justify-content:center;flex-direction:column;gap:20px}
+.test-overlay.show{display:flex}
+.test-icon{font-size:48px;animation:test-spin 2s linear infinite}
+@keyframes test-spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.test-title{font-size:16px;font-weight:700;color:var(--acc);letter-spacing:.1em}
+.test-status{font-size:12px;color:var(--txt2);text-align:center;line-height:1.6;max-width:400px}
+.test-progress{width:320px;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-top:8px}
+.test-progress-fill{height:100%;background:linear-gradient(90deg,var(--acc2),var(--acc));border-radius:3px;width:0%;transition:width .3s}
+.test-results{margin-top:16px;display:flex;gap:16px;font-size:11px}
+.test-results span{display:flex;align-items:center;gap:6px}
+.test-results .alive{color:var(--ok)}
+.test-results .dead{color:var(--err)}
+.test-results .testing{color:var(--warn)}
+
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="logo">TRER<span> ·</span></div>
+  <div id="topStatus" style="font-size:10px;color:var(--txt3);display:none"></div>
+  <div class="topbar-acts">
+    <div class="icon-btn" id="btnHistory" title="History">⏱</div>
+    <div class="icon-btn" id="btnSettings" title="Settings">⚙</div>
+    <div class="icon-btn" id="btnRefresh" title="Refresh" onclick="location.reload()">↺</div>
+  </div>
+</div>
+
+<!-- SEARCH BAR -->
+<div class="searchbar">
+  <input type="search" id="qInput" placeholder="Enter search query…" autocomplete="off" autocorrect="off" spellcheck="false">
+  <button class="run-btn" id="runBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    RUN
+  </button>
+</div>
+
+<!-- WAVE PROGRESS -->
+<div class="wave-track" id="waveTrack">
+  <div class="eta-row">
+    <span id="etaLbl">Initializing…</span>
+    <span id="elapsedLbl"></span>
+  </div>
+  <div class="wave-row">
+    <span class="wave-lbl" id="w1lbl">WAVE 1</span>
+    <div class="wave-bar"><div class="wave-fill" id="w1fill"></div></div>
+    <span class="wave-stat" id="w1stat"></span>
+  </div>
+  <div class="wave-row">
+    <span class="wave-lbl" id="w2lbl">WAVE 2</span>
+    <div class="wave-bar"><div class="wave-fill w2" id="w2fill"></div></div>
+    <span class="wave-stat" id="w2stat"></span>
+  </div>
+  <div class="wave-row">
+    <span class="wave-lbl" id="w3lbl">WAVE 3</span>
+    <div class="wave-bar"><div class="wave-fill w3" id="w3fill"></div></div>
+    <span class="wave-stat" id="w3stat"></span>
+  </div>
+</div>
+
+<!-- STATUS LOG -->
+<div class="status-log" id="statusLog"></div>
+
+<!-- NGU HUNT BAR -->
+<div class="ngu-bar" id="nguBar">
+  <span class="ngu-icon">⟳</span>
+  <div style="flex:1">
+    <div class="ngu-text" id="nguText">Hunting…</div>
+    <div class="ngu-delay-bar"><div class="ngu-delay-fill" id="nguDelayFill" style="width:0%"></div></div>
+  </div>
+  <div class="ngu-attempt" id="nguAttempt"></div>
+</div>
+
+<!-- KEYWORDS -->
+<div class="keywords-section" id="kwSection">
+  <div class="sec-lbl">Expansion Terms</div>
+  <div class="chips" id="kwChips"></div>
+</div>
+
+<!-- RESULTS -->
+<div class="results-section" id="resultsSection">
+  <div class="result-count" id="resultCount">
+    <span></span>
+    <span id="sortLbl" style="cursor:pointer;color:var(--acc);font-size:10px" id="sortToggle">↓ relevance</span>
+  </div>
+  <div id="resultsList"></div>
+</div>
+
+<!-- EMPTY STATE -->
+<div class="empty-state" id="emptyState">
+  <div class="empty-icon">⌬</div>
+  <div class="empty-title">Top Relevance Engine Resolver</div>
+  <div class="empty-sub">3-wave semantic search expansion.<br>Type a query and press RUN.</div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<div class="bot-pad"></div>
+
+<!-- SETTINGS DRAWER -->
+<div class="drawer-overlay" id="settingsOverlay"></div>
+<div class="drawer" id="settingsDrawer">
+  <div class="drawer-handle"></div>
+  <div class="drawer-head">
+    <span class="drawer-title">SETTINGS</span>
+    <button class="drawer-close" id="settingsClose">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="setting-section">Search</div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Max expansion terms</div>
+        <div class="setting-sub">W1 output keywords (5–20)</div>
+      </div>
+      <input class="num-input" id="cfgMaxKw" type="number" min="5" max="20" value="15">
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Results per keyword</div>
+        <div class="setting-sub">W2 fetch count (1–10)</div>
+      </div>
+      <input class="num-input" id="cfgResPerKw" type="number" min="1" max="10" value="5">
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Final top results</div>
+        <div class="setting-sub">W3 output (5–50)</div>
+      </div>
+      <input class="num-input" id="cfgTopN" type="number" min="5" max="50" value="20">
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Request delay (ms)</div>
+        <div class="setting-sub">Throttle between queries (0–5000)</div>
+      </div>
+      <input class="num-input" id="cfgDelay" type="number" min="0" max="5000" step="100" value="600">
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Anti-SEO filter</div>
+        <div class="setting-sub">Penalize commercial/spam results</div>
+      </div>
+      <div class="toggle on" id="cfgAntiSeo"></div>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Domain diversity</div>
+        <div class="setting-sub">Avoid same-domain clustering</div>
+      </div>
+      <div class="toggle on" id="cfgDiversity"></div>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Auto retry on error</div>
+        <div class="setting-sub">Up to 3 retries with backoff</div>
+      </div>
+      <div class="toggle on" id="cfgRetry"></div>
+    </div>
+
+    <div class="setting-section">No-Give-Up Mode</div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Enable NGU</div>
+        <div class="setting-sub">Loop forever until success</div>
+      </div>
+      <div class="toggle" id="cfgNguEnabled"></div>
+    </div>
+    <div class="setting-row" id="nguDelayRow" style="display:none">
+      <div class="setting-info">
+        <div class="setting-lbl">NGU delay (ms)</div>
+        <div class="setting-sub">Base retry delay (0–10000)</div>
+      </div>
+      <input class="num-input" id="cfgNguDelay" type="number" min="0" max="10000" step="100" value="1000">
+    </div>
+    <div class="setting-row" id="nguRetriesRow" style="display:none">
+      <div class="setting-info">
+        <div class="setting-lbl">Proxy retries</div>
+        <div class="setting-sub">Attempts per proxy (1–10)</div>
+      </div>
+      <input class="num-input" id="cfgNguProxyRetries" type="number" min="1" max="10" value="3">
+    </div>
+
+    <div class="setting-section">Proxy</div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Pin to proxy</div>
+        <div class="setting-sub">Lock to one working proxy</div>
+      </div>
+      <select class="num-input" id="cfgPinnedProxy" style="width:auto;padding:5px 8px">
+        <option value="-1">Auto (cycle alive)</option>
+      </select>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Force retest proxies</div>
+        <div class="setting-sub">Ignore cache, test all now</div>
+      </div>
+      <button class="sm-btn" id="btnRetestProxies">RETEST</button>
+    </div>
+
+    <div class="setting-section">System</div>
+
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Changelog</div>
+        <div class="setting-sub">View version history</div>
+      </div>
+      <button class="sm-btn" id="openChangelog">VIEW</button>
+    </div>
+
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Debug console</div>
+        <div class="setting-sub">Runtime log viewer</div>
+      </div>
+      <button class="sm-btn" id="openDebug">OPEN</button>
+    </div>
+
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Clear history</div>
+        <div class="setting-sub">Remove all saved searches</div>
+      </div>
+      <button class="sm-btn" id="clearHistory">CLEAR</button>
+    </div>
+
+    <div style="text-align:center;padding-top:16px">
+      <span style="font-size:9px;color:var(--txt3)">TRER v1.7 · Three-Wave Semantic Resolver</span>
+    </div>
+  </div>
+</div>
+
+<!-- HISTORY DRAWER -->
+<div class="drawer-overlay" id="historyOverlay"></div>
+<div class="drawer" id="historyDrawer">
+  <div class="drawer-handle"></div>
+  <div class="drawer-head">
+    <span class="drawer-title">HISTORY</span>
+    <button class="drawer-close" id="historyClose">✕</button>
+  </div>
+  <div class="drawer-body" id="historyBody">
+    <div class="empty-state" style="padding:20px 0">
+      <div class="empty-icon">⏱</div>
+      <div class="empty-sub">No searches yet</div>
+    </div>
+  </div>
+</div>
+
+<!-- DEBUG DRAWER -->
+<div class="drawer-overlay" id="debugOverlay"></div>
+<div class="drawer" id="debugDrawer">
+  <div class="drawer-handle"></div>
+  <div class="drawer-head">
+    <span class="drawer-title">DEBUG CONSOLE</span>
+    <button class="drawer-close" id="debugClose">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="debug-acts">
+      <button class="sm-btn" id="clearDebug">CLEAR</button>
+      <button class="sm-btn" id="exportDebug">EXPORT</button>
+      <span style="font-size:9px;color:var(--txt3);margin-left:auto;align-self:center" id="debugCount">0 lines</span>
+    </div>
+    <div class="debug-body" id="debugBody"></div>
+  </div>
+</div>
+
+<!-- CHANGELOG DRAWER -->
+<div class="drawer-overlay" id="changelogOverlay"></div>
+<div class="drawer" id="changelogDrawer">
+  <div class="drawer-handle"></div>
+  <div class="drawer-head">
+    <span class="drawer-title">CHANGELOG</span>
+    <button class="drawer-close" id="changelogClose">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="changelog-list" id="changelogList"></div>
+  </div>
+</div>
+
+<!-- PROXY TEST OVERLAY -->
+<div class="test-overlay" id="testOverlay">
+  <div class="test-icon">⟳</div>
+  <div class="test-title">TESTING PROXIES</div>
+  <div class="test-status" id="testStatus">Initializing simultaneous proxy tests…</div>
+  <div class="test-progress">
+    <div class="test-progress-fill" id="testProgressFill"></div>
+  </div>
+  <div class="test-results">
+    <span class="alive">✓ <span id="testAliveCount">0</span> alive</span>
+    <span class="testing">◌ <span id="testTestingCount">0</span> testing</span>
+    <span class="dead">✗ <span id="testDeadCount">0</span> dead</span>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// TRER · Top Relevance Engine Resolver · v1.0
+// Three-Wave Semantic Search Expansion
+// ═══════════════════════════════════════════════════════════
+
+const VER='1.7',VER_DATE='2026-02-19';
+
+// ─── CHANGELOG ─────────────────────────────────────────────
+// Format: L=lines, P=parts, +=add, -=remove, •=modify
+const CHANGELOG=[
+  {v:'1.7',changes:'+L142,-L38,•P3~P8',notes:'NGU nested config, limits 5-20/1-10/5-50, anti-SEO 25+ patterns, 4-section UI, retest button, code dedup utilities'},
+  {v:'1.6',changes:'+L142,-L38,•P2~P4',notes:'Auto proxy test on start (simultaneous, random data), 3-day cache, version-aware, UI blocked until ready'},
+  {v:'1.5',changes:'+L218,-L24,•P2~P5',notes:'Smart proxy system (health check, pin-to-proxy, auto-skip dead), proxies reordered'},
+  {v:'1.4',changes:'+L156,-L43,•P2',notes:'NGU truly infinite (no unguarded throws), multi-strategy fetch (direct, HEAD, UA rotation, 404 fallback)'},
+  {v:'1.3',changes:'+L94,-L71,•P6~P7',notes:'W1 rebuilt: ac.duckduckgo.com autocomplete primary, Instant RelatedSearches, HTML related-searches'},
+  {v:'1.2',changes:'+L187,-L12,•P2~P3',notes:'No-Give-Up mode (adaptive 0-10s delay), self-URL relay, JSONP, per-run opId guards'},
+  {v:'1.0',changes:'+L1842',notes:'Initial release: 3-wave expansion, anti-SEO scoring, domain diversity'}
+];
+
+// ─── CONFIG ────────────────────────────────────────────────
+const CFG_KEY='trer_cfg_v1',HIST_KEY='trer_hist_v1',PROXY_HEALTH_KEY='trer_proxy_health';
+let cfg={
+  maxKw:15,resPerKw:5,topN:20,delay:600,
+  antiSeo:true,diversity:true,retry:true,
+  method:'default', // 'default' | 'x-verify'
+  xVerifyMultiplier:3, // 2-5
+  ngu:{enabled:false,delay:1000,proxyRetries:3,multiTask:false},
+  pinnedProxy:-1
+};
+let histArr=[];
+let running=false,abortFlag=false;
+let sortMode='relevance';
+let lastResults=[];
+let elapsed=0,elapsedTimer=null;
+let runOpId=0;
+const MAX_CONCURRENT=3; // for multi-task mode
+
+// ─── DEBUG ──────────────────────────────────────────────────
+const dbLines=[];
+function dbg(lvl,msg){
+  const ts=new Date().toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  dbLines.push({ts,lvl,msg:String(msg)});
+  const b=document.getElementById('debugBody');
+  const l=document.createElement('div');
+  l.className='debug-line';
+  l.innerHTML=`<span class="dl-ts">${ts}</span><span class="dl-lvl l-${lvl}">${lvl.toUpperCase()}</span><span class="dl-msg">${escHtml(String(msg))}</span>`;
+  b.appendChild(l);
+  b.scrollTop=b.scrollHeight;
+  document.getElementById('debugCount').textContent=dbLines.length+' lines';
+  console[lvl==='error'?'error':lvl==='warn'?'warn':'log']('[TRER]',msg);
+}
+const L=(m)=>dbg('log',m),Li=(m)=>dbg('info',m),Lw=(m)=>dbg('warn',m),Le=(m)=>dbg('error',m);
+
+// ─── UTILS ──────────────────────────────────────────────────
+const escHtml=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const $=id=>document.getElementById(id);
+
+// Config helpers - reduce duplication
+const syncInput=(id,path)=>{
+  const keys=path.split('.');
+  let val=cfg;
+  keys.forEach(k=>val=val[k]);
+  $(id).value=val;
+};
+const syncToggle=(id,path)=>{
+  const keys=path.split('.');
+  let val=cfg;
+  keys.forEach(k=>val=val[k]);
+  const el=$(id);
+  el.classList.toggle('on',!!val);
+  el.dataset.val=val?'1':'0';
+};
+const updateCfg=(path,val)=>{
+  const keys=path.split('.');
+  let obj=cfg;
+  for(let i=0;i<keys.length-1;i++)obj=obj[keys[i]];
+  obj[keys[keys.length-1]]=val;
+  saveCfg();
+};
+
+// Drawer helpers
+const openDrawer=name=>{$(`${name}Overlay`).classList.add('open');$(`${name}Drawer`).classList.add('open');document.body.style.overflow='hidden';};
+const closeDrawer=name=>{$(`${name}Overlay`).classList.remove('open');$(`${name}Drawer`).classList.remove('open');document.body.style.overflow='';};
+
+// DOM helpers
+function getDomain(url){
+  try{return new URL(url).hostname.replace(/^www\./,'');}catch{return url;}
+}
+function stripHtml(s){return s.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();}
+function tokenize(s){
+  return s.toLowerCase()
+    .replace(/[^a-z0-9\s]/g,' ')
+    .split(/\s+/)
+    .filter(w=>w.length>2&&!STOPWORDS.has(w));
+}
+const STOPWORDS=new Set(['the','and','for','that','this','with','from','are','was','were','has','have','had','not','but','what','when','where','who','how','its','will','can','may','about','also','than','then','there','their','they','been','being','your','our','any','all','each','both','few','more','most','other','some','such','into','onto','after','before','during','without','between','through','these','those','only','just','now','new','first','last','long','great','since','per','via','vs','etc','get','use','make','like','time','need','very','well','over','even','still','back','way','take','give']);
+
+function extractNgrams(tokens,n){
+  const grams={};
+  for(let i=0;i<=tokens.length-n;i++){
+    const g=tokens.slice(i,i+n).join(' ');
+    grams[g]=(grams[g]||0)+1;
+  }
+  return grams;
+}
+
+// ─── PROXY + FETCH ──────────────────────────────────────────
+const SELF_ORIGIN=(()=>{
+  const p=location.protocol;
+  if(p==='http:'||p==='https:')return location.origin;
+  return null;
+})();
+
+// Proxy builders with metadata — REORDERED: working proxies first
+const PROXY_META=[
+  {name:'AllOrigins/raw',build:u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,health:'unknown'},
+  {name:'AllOrigins/get',build:u=>`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,health:'unknown'},
+  {name:'CorsProxy.io',build:u=>`https://corsproxy.io/?${encodeURIComponent(u)}`,health:'unknown'},
+  {name:'ThingProxy',build:u=>`https://thingproxy.freeboard.io/fetch/${u}`,health:'unknown'},
+  {name:'CORS-Anywhere',build:u=>`https://cors-anywhere.herokuapp.com/${u}`,health:'unknown'},
+];
+
+// Self-relay prepended if available
+if(SELF_ORIGIN){
+  PROXY_META.unshift({name:'Self-Relay',build:u=>`${SELF_ORIGIN}/fetch?url=${encodeURIComponent(u)}`,health:'unknown'});
+}
+
+// Build flat array for compat
+const PROXY_BUILDERS=PROXY_META.map(p=>p.build);
+let proxyIdx=0;
+const proxyFails={};
+const proxySuccesses={};
+
+// Health check: test proxy with random DDG search (lightweight, realistic)
+async function checkProxyHealth(idx,timeoutMs=8000){
+  const randomQueries=['test','search','query','data','info','tech','web'];
+  const testQuery=randomQueries[Math.floor(Math.random()*randomQueries.length)]+Math.floor(Math.random()*1000);
+  const testUrl=`https://html.duckduckgo.com/html/?q=${encodeURIComponent(testQuery)}`;
+  const meta=PROXY_META[idx];
+  
+  const ctrl=new AbortController();
+  const tid=setTimeout(()=>ctrl.abort(),timeoutMs);
+  try{
+    const proxied=meta.build(testUrl);
+    const r=await fetch(proxied,{signal:ctrl.signal});
+    clearTimeout(tid);
+    if(!r.ok){
+      meta.health='dead';
+      return {idx,name:meta.name,ok:false,status:r.status};
+    }
+    const text=await r.text();
+    const valid=text&&text.length>100&&text.includes('duckduckgo');
+    meta.health=valid?'alive':'dead';
+    return {idx,name:meta.name,ok:valid,bytes:text.length};
+  }catch(e){
+    clearTimeout(tid);
+    meta.health='dead';
+    return {idx,name:meta.name,ok:false,error:e.message};
+  }
+}
+
+// Run all health checks simultaneously with progress UI
+async function initProxyHealth(){
+  const overlay=$('testOverlay');
+  const status=$('testStatus');
+  const fill=$('testProgressFill');
+  const aliveEl=$('testAliveCount');
+  const testingEl=$('testTestingCount');
+  const deadEl=$('testDeadCount');
+  
+  overlay.classList.add('show');
+  status.textContent=`Testing all ${PROXY_META.length} proxies SIMULTANEOUSLY with random search data…`;
+  
+  let completed=0;
+  let alive=0;
+  let dead=0;
+  const total=PROXY_META.length;
+  
+  testingEl.textContent=total;
+  Li(`Starting ${total} proxy tests in parallel…`);
+  
+  // Start all tests simultaneously
+  const promises=PROXY_META.map((m,i)=>{
+    Li(`→ [${i}] ${m.name} test started`);
+    return checkProxyHealth(i).then(result=>{
+      completed++;
+      if(result.ok){
+        alive++;
+        L(`✓ [${result.idx}] ${result.name} OK (${result.bytes}b)`);
+      }else{
+        dead++;
+        Lw(`✗ [${result.idx}] ${result.name} DEAD (${result.error||result.status||'fail'})`);
+      }
+      
+      // Update UI
+      const pct=Math.round((completed/total)*100);
+      fill.style.width=pct+'%';
+      aliveEl.textContent=alive;
+      testingEl.textContent=total-completed;
+      deadEl.textContent=dead;
+      status.textContent=`Testing ${total-completed} proxies… (${completed}/${total} done, ${alive} working)`;
+      
+      return result;
+    });
+  });
+  
+  await Promise.allSettled(promises);
+  
+  // Final status
+  status.textContent=`Test complete: ${alive} working, ${dead} dead. Ready to search!`;
+  Li(`=== Proxy test complete: ${alive} alive, ${dead} dead ===`);
+  
+  // Cache results with version + timestamp
+  try{
+    const healthData=PROXY_META.map(p=>({name:p.name,health:p.health}));
+    localStorage.setItem(PROXY_HEALTH_KEY,JSON.stringify({
+      version:VER,
+      ts:Date.now(),
+      data:healthData
+    }));
+  }catch{}
+  
+  // Hide overlay after 1.5s
+  setTimeout(()=>{
+    overlay.classList.remove('show');
+    // Enable search button
+    $('runBtn').disabled=false;
+    $('qInput').disabled=false;
+  },1500);
+  
+  return alive;
+}
+
+// Load cached health (skip test if valid: same version + < 3 days old)
+function loadProxyHealth(){
+  try{
+    const cached=localStorage.getItem(PROXY_HEALTH_KEY);
+    if(!cached)return false;
+    
+    const {version,ts,data}=JSON.parse(cached);
+    
+    // Cache invalid if version changed or > 3 days old
+    const age=Date.now()-ts;
+    const threeDays=3*24*60*60*1000; // 259200000 ms
+    
+    if(version!==VER){
+      L(`Cache invalid: version mismatch (cached=${version}, current=${VER})`);
+      return false;
+    }
+    if(age>threeDays){
+      L(`Cache invalid: too old (${Math.round(age/86400000)} days)`);
+      return false;
+    }
+    
+    // Load cached health
+    data.forEach((h,i)=>{
+      if(PROXY_META[i]&&PROXY_META[i].name===h.name){
+        PROXY_META[i].health=h.health;
+      }
+    });
+    
+    const ageMin=Math.round(age/60000);
+    const ageTxt=ageMin<60?`${ageMin}min`:`${Math.round(ageMin/60)}hr`;
+    L(`Loaded cached proxy health (age: ${ageTxt}, v${version})`);
+    
+    const alive=PROXY_META.filter(p=>p.health==='alive').length;
+    Li(`Cached: ${alive} alive, ${PROXY_META.length-alive} dead`);
+    
+    return true;
+  }catch(e){
+    Lw('Cache load error: '+e.message);
+    return false;
+  }
+}
+
+// Get best proxy index based on health + pinned setting
+function getBestProxyIdx(attempt){
+  // If user pinned a proxy, use it exclusively
+  if(cfg.pinnedProxy>=0&&cfg.pinnedProxy<PROXY_BUILDERS.length){
+    return cfg.pinnedProxy;
+  }
+  // Otherwise cycle through alive proxies, skip dead
+  const aliveIdxs=PROXY_META.map((p,i)=>p.health!=='dead'?i:null).filter(x=>x!==null);
+  if(aliveIdxs.length===0)return attempt%PROXY_BUILDERS.length; // fallback: try all
+  return aliveIdxs[attempt%aliveIdxs.length];
+}
+// User-Agent rotation
+const USER_AGENTS=[
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+];
+
+function unwrapProxyResponse(text,ct){
+  if(!text)return '';
+  try{
+    const j=JSON.parse(text);
+    if(j.contents!==undefined)return j.contents;
+    if(j.body!==undefined)return j.body;
+    if(j.data!==undefined)return j.data;
+  }catch{}
+  return text;
+}
+
+// JSONP for DDG instant
+function fetchDDGInstantJsonp(query){
+  return new Promise((res,rej)=>{
+    const cb='trer_cb_'+Date.now();
+    const s=document.createElement('script');
+    const tid=setTimeout(()=>{
+      delete window[cb];s.remove();
+      rej(new Error('JSONP timeout'));
+    },10000);
+    window[cb]=data=>{
+      clearTimeout(tid);delete window[cb];s.remove();
+      res(data);
+    };
+    s.src=`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1&skip_disambig=1&callback=${cb}`;
+    s.onerror=()=>{clearTimeout(tid);delete window[cb];s.remove();rej(new Error('JSONP error'));};
+    document.head.appendChild(s);
+  });
+}
+
+// Strategy A: Direct fetch (no proxy) — try if CORS might be permissive
+async function fetchDirect(url,timeoutMs=8000){
+  const ctrl=new AbortController();
+  const tid=setTimeout(()=>ctrl.abort(),timeoutMs);
+  try{
+    const r=await fetch(url,{
+      signal:ctrl.signal,
+      headers:{'User-Agent':USER_AGENTS[0]},
+      mode:'cors',
+      credentials:'omit'
+    });
+    clearTimeout(tid);
+    if(!r.ok)return {ok:false,status:r.status,error:`HTTP ${r.status}`};
+    const ct=r.headers.get('content-type')||'';
+    const text=ct.includes('json')?JSON.stringify(await r.json()):await r.text();
+    return {ok:true,text};
+  }catch(e){
+    clearTimeout(tid);
+    return {ok:false,error:e.message};
+  }
+}
+
+// Strategy B: HEAD check — verify URL is reachable before full fetch
+async function fetchHead(url,timeoutMs=5000){
+  const ctrl=new AbortController();
+  const tid=setTimeout(()=>ctrl.abort(),timeoutMs);
+  try{
+    const r=await fetch(url,{method:'HEAD',signal:ctrl.signal,mode:'no-cors'});
+    clearTimeout(tid);
+    return {ok:true,reachable:true};
+  }catch(e){
+    clearTimeout(tid);
+    return {ok:false,reachable:false};
+  }
+}
+
+// Strategy C: Proxied fetch with UA rotation
+async function fetchViaProxy(url,pIdx,attempt,timeoutMs=12000){
+  const proxied=PROXY_BUILDERS[pIdx](url);
+  const ua=USER_AGENTS[attempt%USER_AGENTS.length];
+  const ctrl=new AbortController();
+  const tid=setTimeout(()=>ctrl.abort(),timeoutMs);
+  try{
+    const r=await fetch(proxied,{
+      signal:ctrl.signal,
+      headers:{'User-Agent':ua}
+    });
+    clearTimeout(tid);
+    if(!r.ok)return {ok:false,status:r.status,error:`HTTP ${r.status}`};
+    const ct=r.headers.get('content-type')||'';
+    const text=ct.includes('json')?JSON.stringify(await r.json()):await r.text();
+    return {ok:true,text:unwrapProxyResponse(text,ct)};
+  }catch(e){
+    clearTimeout(tid);
+    return {ok:false,error:e.message};
+  }
+}
+
+// NGU state
+const nguState={active:false,attempt:0,delay:0};
+
+function nguUpdateUI(text,attempt,delay,maxDelay=10000){
+  const bar=$('nguBar');
+  const pct=maxDelay>0?Math.round((delay/maxDelay)*100):0;
+  $('nguText').textContent=text;
+  $('nguAttempt').textContent=`#${attempt}`;
+  $('nguDelayFill').style.width=pct+'%';
+  bar.classList.toggle('show',nguState.active);
+}
+
+function nextNguDelay(fails){
+  const base=Math.min(500*Math.pow(1.6,fails-1),10000);
+  const jitter=(Math.random()-0.5)*400;
+  return Math.max(0,Math.min(10000,Math.round(base+jitter)));
+}
+
+// ─── MAIN RESILIENT FETCH ──────────────────────────────────
+// NGU mode: NEVER throws (except abort), loops forever
+// Regular mode: tries all strategies, then throws
+async function fetchProxy(url,opId){
+  const isNgu=cfg.ngu.enabled;
+  const maxRegularAttempts=cfg.retry?PROXY_BUILDERS.length*3:PROXY_BUILDERS.length;
+  let totalAttempts=0;
+  let nguAttempts=0;
+  let consecutive404s=0;
+
+  // eslint-disable-next-line no-constant-condition
+  while(true){
+    if(abortFlag||runOpId!==opId)throw new Error('Aborted');
+    totalAttempts++;
+
+    // ── Strategy sequence per cycle ──
+    // Cycle 0-2: Direct, then proxy rotation
+    // Cycle 3+: Proxy rotation only (direct already tried)
+    const cycle=Math.floor(totalAttempts/PROXY_BUILDERS.length);
+    let result={ok:false};
+
+    // Try direct fetch first (only on first few attempts)
+    if(totalAttempts===1){
+      Li(`[#${totalAttempts}] Direct: ${url.slice(0,50)}`);
+      result=await fetchDirect(url);
+      if(result.ok){
+        L(`Direct OK: ${result.text.length} bytes`);
+        if(isNgu&&nguAttempts>0){nguState.active=false;nguUpdateUI('',0,0);}
+        // ⚠️ CRITICAL: Never throw on empty, just warn and retry
+        if(!result.text||result.text.length<20){
+          Lw(`Direct returned empty (${result.text?.length||0}b) — will retry`);
+        }else{
+          return result.text;
+        }
+      }else{
+        Lw(`Direct fail: ${result.error||'unknown'}`);
+      }
+    }
+
+    // Try proxied fetch
+    if(!result.ok){
+      const pIdx=getBestProxyIdx(totalAttempts);
+      const pName=PROXY_META[pIdx]?.name||`p${pIdx}`;
+      Li(`[#${totalAttempts}] ${pName}: ${url.slice(0,50)}`);
+      result=await fetchViaProxy(url,pIdx,totalAttempts);
+      if(result.ok){
+        L(`${pName} OK: ${result.text.length} bytes`);
+        proxyIdx=pIdx;
+        proxySuccesses[pIdx]=(proxySuccesses[pIdx]||0)+1;
+        PROXY_META[pIdx].health='alive'; // mark alive on success
+        if(isNgu&&nguAttempts>0){nguState.active=false;nguUpdateUI('',0,0);}
+        // ⚠️ CRITICAL: Never throw on empty
+        if(!result.text||result.text.length<20){
+          Lw(`${pName} empty (${result.text?.length||0}b) — will retry`);
+        }else{
+          return result.text;
+        }
+      }else{
+        proxyFails[pIdx]=(proxyFails[pIdx]||0)+1;
+        Lw(`${pName} fail: ${result.error||'unknown'}`);
+        if(proxyFails[pIdx]>=3)PROXY_META[pIdx].health='dead'; // mark dead after 3 fails
+        // Track consecutive 404s — might indicate bad URL
+        if(result.status===404){
+          consecutive404s++;
+          if(consecutive404s>=3){
+            Lw(`404 × ${consecutive404s} — URL may be invalid`);
+          }
+        }else{
+          consecutive404s=0;
+        }
+      }
+    }
+
+    // ── Exit or retry logic ──
+    if(abortFlag||runOpId!==opId)throw new Error('Aborted');
+
+    // Regular mode: give up after maxRegularAttempts
+    if(!isNgu&&totalAttempts>=maxRegularAttempts){
+      throw new Error(`All strategies exhausted after ${totalAttempts} attempts`);
+    }
+
+    // ⚠️ NGU mode: NEVER give up, just keep looping
+    nguAttempts++;
+    const delay=isNgu?nextNguDelay(nguAttempts):Math.min(800*totalAttempts,3000);
+
+    if(isNgu){
+      nguState.active=true;nguState.attempt=nguAttempts;nguState.delay=delay;
+      const stratLabel=totalAttempts===1?'direct':`proxy${totalAttempts%PROXY_BUILDERS.length}`;
+      const msg=`Hunting [${stratLabel}] · wait ${(delay/1000).toFixed(1)}s`;
+      nguUpdateUI(msg,nguAttempts,delay);
+      statusMsg('warn',`NGU #${nguAttempts} [${stratLabel}] · next in ${(delay/1000).toFixed(1)}s`);
+    }else{
+      showToast(`Retry ${totalAttempts}/${maxRegularAttempts}…`);
+    }
+
+    // Animated countdown
+    if(delay>100){
+      const steps=20;const stepMs=delay/steps;
+      for(let s=0;s<steps;s++){
+        if(abortFlag||runOpId!==opId){nguState.active=false;throw new Error('Aborted');}
+        if(isNgu)$('nguDelayFill').style.width=Math.round(((steps-s)/steps)*100)+'%';
+        await sleep(stepMs);
+      }
+    }else{
+      await sleep(delay);
+    }
+  }
+}
+
+async function fetchDDGInstant(query,opId){
+  // Try JSONP first (no CORS issue)
+  try{
+    const data=await fetchDDGInstantJsonp(query);
+    L('DDG instant via JSONP OK');
+    return data;
+  }catch(e){Lw('JSONP fail: '+e.message);}
+
+  // Fallback to proxied fetch
+  const url=`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1&skip_disambig=1`;
+  const txt=await fetchProxy(url,opId);
+  try{
+    let raw=txt;
+    try{const j=JSON.parse(txt);if(j.RelatedTopics!==undefined)return j;raw=j.contents||txt;}catch{}
+    return JSON.parse(raw);
+  }catch(e){Lw('DDG instant parse fail: '+e.message);return null;}
+}
+
+// ─── DDG AUTOCOMPLETE — CORS-open, no proxy needed ──────────
+// Returns ["query", ["sug1","sug2",...]] — OpenSearch format
+async function fetchDDGAutocomplete(query,opId){
+  // ac.duckduckgo.com is CORS-open — try direct first
+  const acUrl=`https://ac.duckduckgo.com/ac/?q=${encodeURIComponent(query)}&type=list`;
+  Li(`AC direct: "${query}"`);
+  try{
+    const ctrl=new AbortController();
+    const tid=setTimeout(()=>ctrl.abort(),8000);
+    const r=await fetch(acUrl,{signal:ctrl.signal});
+    clearTimeout(tid);
+    if(!r.ok)throw new Error(`HTTP ${r.status}`);
+    const j=await r.json();
+    // j = ["query", ["sug1","sug2",...]]  or  [["sug1",{}],...]  depending on type
+    const suggestions=Array.isArray(j[1])?j[1]:Array.isArray(j)?j.map(x=>x[0]||x).filter(s=>typeof s==='string'):[];
+    L(`AC direct OK: ${suggestions.length} suggestions`);
+    return suggestions;
+  }catch(e){
+    Lw(`AC direct fail: ${e.message} — falling back to proxy`);
+  }
+  // Proxy fallback
+  try{
+    const txt=await fetchProxy(acUrl,opId);
+    const raw=txt.startsWith('[')?txt:JSON.parse(txt).contents||txt;
+    const j=JSON.parse(raw);
+    const suggestions=Array.isArray(j[1])?j[1]:Array.isArray(j)?j.map(x=>x[0]||x).filter(s=>typeof s==='string'):[];
+    L(`AC proxy OK: ${suggestions.length} suggestions`);
+    return suggestions;
+  }catch(e){
+    Lw(`AC proxy fail: ${e.message}`);
+    return [];
+  }
+}
+
+async function fetchDDGHtml(query,opId){
+  const url=`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+  return await fetchProxy(url,opId);
+}
+
+// ─── PARSE DDG HTML ─────────────────────────────────────────
+// Returns {results:[...], relatedSearches:["term","term",...]}
+function parseDDGHtml(html){
+  const parser=new DOMParser();
+  const doc=parser.parseFromString(html,'text/html');
+  const results=[];
+  const relatedSearches=[];
+
+  // ── Extract web results ──
+  // Primary selector: #links .result (confirmed working 2024-2025)
+  const cards=doc.querySelectorAll('#links .result, .result__body');
+  cards.forEach(card=>{
+    // Skip "more results" / related searches card
+    if(card.classList.contains('result--more'))return;
+
+    const titleEl=card.querySelector('.result__a');
+    if(!titleEl)return;
+
+    const title=titleEl.textContent.trim();
+    if(!title||title.length<3)return;
+
+    // URL: DDG html uses protocol-relative //duckduckgo.com/l/?uddg= redirects
+    // The href on .result__a is protocol-relative "//duckduckgo.com/l/..."
+    let url=titleEl.getAttribute('href')||'';
+    if(url.startsWith('//')){url='https:'+url;}
+    // Decode DDG redirect wrapper
+    if(url.includes('/l/?')||url.includes('/l?')){
+      try{
+        const u=new URL(url);
+        const uddg=u.searchParams.get('uddg')||u.searchParams.get('u');
+        if(uddg)url=decodeURIComponent(uddg);
+      }catch{}
+    }
+    if(!url||url.startsWith('javascript')||url.includes('duckduckgo.com/html'))return;
+
+    // Clean display URL from .result__url (plain text, no redirect)
+    const urlEl=card.querySelector('.result__url,.result__extras__url');
+    const displayUrl=urlEl?urlEl.textContent.trim():'';
+    // If url still looks bad, reconstruct from display URL
+    if(!url.startsWith('http')&&displayUrl){
+      url='https://'+displayUrl.replace(/^https?:\/\//,'');
+    }
+    if(!url.startsWith('http'))return;
+
+    const snippetEl=card.querySelector('.result__snippet');
+    const snippet=(snippetEl?.textContent||'').trim();
+    const domain=getDomain(url);
+    if(domain&&title)results.push({title,url,domain,snippet});
+  });
+
+  // ── Extract related searches from bottom of page ──
+  // DDG puts "People also search for" in .result--more section
+  doc.querySelectorAll('.result--more .result__a, .related-searches__link, .results_links_more a').forEach(a=>{
+    const t=a.textContent.trim();
+    if(t&&t.length>2&&t.length<80)relatedSearches.push(t);
+  });
+  // Also check for inline "searches related to" links
+  doc.querySelectorAll('.zci__related-searches a, .web-result a[href*="duckduckgo.com/?q="]').forEach(a=>{
+    const t=a.textContent.trim();
+    if(t&&!relatedSearches.includes(t))relatedSearches.push(t);
+  });
+
+  // Fallback: if zero results, try wider net
+  if(results.length===0){
+    doc.querySelectorAll('a[href]').forEach(a=>{
+      const href=a.getAttribute('href')||'';
+      let url=href.startsWith('//')?'https:'+href:href;
+      if(url.includes('/l/?')){
+        try{const u=new URL(url);const uddg=u.searchParams.get('uddg');if(uddg)url=decodeURIComponent(uddg);}catch{}
+      }
+      if(!url.startsWith('http')||url.includes('duckduckgo.com'))return;
+      const title=a.textContent.trim();
+      if(title.length<5)return;
+      try{
+        const domain=new URL(url).hostname.replace(/^www\./,'');
+        results.push({title,url,domain,snippet:''});
+      }catch{}
+    });
+  }
+
+  L(`Parsed: ${results.length} results, ${relatedSearches.length} related searches`);
+  return {results:results.slice(0,Math.max(cfg.resPerKw,5)),relatedSearches:relatedSearches.slice(0,10)};
+}
+
+// ─── SEO PENALTY ────────────────────────────────────────────
+const SEO_PATTERNS=[
+  /\b(best|top \d+|review|buy|cheap|deal|price|#1|ranked|comparison|vs\.)\b/i,
+  /\b(must|need|should|ultimate|definitive|complete guide)\b/i,
+  /\b(\d+ ways to|\d+ things|\d+ tips|\d+ tricks|\d+ hacks)\b/i,
+  /\b(updated|latest|202[4-6]|new for)\b/i,
+  /\?(aff|ref|tag|affiliate)=/i,
+  /click here|buy now|shop now|get it|order|purchase/i,
+  /affiliate|sponsored|ad\b|promotion/i
+];
+const SPAM_DOMAINS=new Set(['amazon','pinterest','yelp','tripadvisor','trustpilot','g2.com','capterra','getapp','quora']);
+const CONTENT_FARMS=new Set(['medium.com','forbes.com','entrepreneur.com','inc.com','businessinsider.com']);
+const BONUS_DOMAINS=/(\.edu|\.gov|\.ac\.|arxiv|scholar|pubmed|doi\.org|github\.com)/;
+
+function seoScore(r){
+  let s=0;
+  if(cfg.antiSeo){
+    // Pattern penalties
+    SEO_PATTERNS.forEach(p=>{
+      if(p.test(r.title))s-=12;
+      if(p.test(r.snippet))s-=6;
+    });
+    // Domain penalties
+    const baseDomain=r.domain.split('.')[0];
+    if(SPAM_DOMAINS.has(baseDomain))s-=25;
+    if(CONTENT_FARMS.has(r.domain))s-=18;
+    // URL spam (affiliate links)
+    if(/\?(aff|ref|tag)=/.test(r.url))s-=20;
+    // Bonus for quality
+    if(BONUS_DOMAINS.test(r.domain))s+=20;
+    // Generic title penalty
+    if(r.title.split(' ').length<4)s-=5;
+  }
+  return s;
+}
+
+// ─── WAVE 1 ─────────────────────────────────────────────────
+async function wave1(query,opId){
+  Li('Wave 1: Keyword expansion — AC + Instant + HTML related');
+  setWave(1,'active',0);
+  statusMsg('info',`W1: Expanding "${query}"…`);
+
+  // termMap: term → {freq, sources:Set<string>}
+  // Sources tracked for divergence scoring (multi-source = trustworthy)
+  const termMap={};
+  const addTerm=(term,source,weight=1)=>{
+    const t=term.trim().toLowerCase();
+    if(!t||t.length<3)return;
+    if(!termMap[t])termMap[t]={freq:0,sources:new Set()};
+    termMap[t].freq+=weight;
+    termMap[t].sources.add(source);
+  };
+
+  const qTokens=new Set(tokenize(query));
+  // Strip terms that are subset of original query
+  const isSubset=t=>tokenize(t).every(tok=>qTokens.has(tok));
+
+  // ── SOURCE A: Autocomplete (CORS-open, no proxy, primary) ──
+  setWave(1,'active',10);
+  statusMsg('info','W1-A: Autocomplete…');
+  const acTerms=await fetchDDGAutocomplete(query,opId).catch(e=>{Lw('W1 AC: '+e.message);return [];});
+
+  acTerms.forEach(sug=>{
+    if(!isSubset(sug)){
+      // Full suggestion as a term (high weight — engine-native)
+      addTerm(sug,'autocomplete',3);
+      // Also extract unique tokens not in query
+      tokenize(sug).filter(tok=>!qTokens.has(tok)&&tok.length>3).forEach(tok=>addTerm(tok,'autocomplete',1));
+    }
+  });
+  L(`W1-A: ${acTerms.length} suggestions → ${Object.keys(termMap).length} terms`);
+
+  // ── SOURCE B: Instant API — RelatedSearches only ──
+  // (RelatedTopics = Wikipedia categories, too noisy, skipped)
+  setWave(1,'active',30);
+  statusMsg('info','W1-B: Instant API related…');
+  await sleep(Math.min(cfg.delay,400));
+  const inst=await fetchDDGInstant(query,opId).catch(e=>{Lw('W1 instant: '+e.message);return null;});
+  if(inst){
+    // RelatedSearches: actual "people also searched" queries — gold
+    (inst.RelatedSearches||[]).forEach(r=>{
+      if(r.Text&&!isSubset(r.Text)){
+        addTerm(r.Text,'instant_related',2.5);
+        tokenize(r.Text).filter(t=>!qTokens.has(t)&&t.length>3).forEach(t=>addTerm(t,'instant_related',0.8));
+      }
+    });
+    L(`W1-B: ${(inst.RelatedSearches||[]).length} related searches`);
+  }
+
+  // ── SOURCE C: HTML first page — results + "related searches" section ──
+  setWave(1,'active',55);
+  statusMsg('info','W1-C: HTML page related…');
+  await sleep(cfg.delay);
+  const html=await fetchDDGHtml(query,opId).catch(e=>{Lw('W1 html: '+e.message);return null;});
+  let htmlResults=[];
+  if(html){
+    const parsed=parseDDGHtml(html);
+    htmlResults=parsed.results;
+
+    // Related searches from bottom of HTML page — engine-curated, high value
+    parsed.relatedSearches.forEach(rs=>{
+      if(!isSubset(rs)){
+        addTerm(rs,'html_related',2.5);
+        tokenize(rs).filter(t=>!qTokens.has(t)&&t.length>3).forEach(t=>addTerm(t,'html_related',0.8));
+      }
+    });
+    L(`W1-C: ${htmlResults.length} results, ${parsed.relatedSearches.length} related searches`);
+  }
+
+  // ── SCORE & SELECT ──
+  setWave(1,'active',80);
+
+  const scored=Object.entries(termMap)
+    .map(([term,{freq,sources}])=>{
+      // score = freq × log(1 + source_diversity) — multi-source terms win
+      const div=sources.size;
+      const score=freq*Math.log(1+div);
+      return {term,freq,div,score,sources:[...sources]};
+    })
+    .filter(x=>x.score>0&&!isSubset(x.term))
+    .sort((a,b)=>b.score-a.score);
+
+  // Prefer full-phrase terms (from autocomplete/relatedSearches) over raw tokens
+  // Deduplicate: if a token is already covered by a phrase, drop the token
+  const finalTerms=[];
+  const coveredTokens=new Set();
+  for(const t of scored){
+    const toks=tokenize(t.term);
+    // If all tokens of this term are already covered by higher-ranked phrases, skip
+    if(toks.length===1&&coveredTokens.has(toks[0]))continue;
+    finalTerms.push(t);
+    toks.forEach(tok=>coveredTokens.add(tok));
+    if(finalTerms.length>=cfg.maxKw)break;
+  }
+
+  L(`W1 done: ${finalTerms.length} terms (from ${Object.keys(termMap).length} candidates)`);
+  setWave(1,'done',100);
+  statusMsg('ok',`W1: ${finalTerms.length} expansion terms (AC+Instant+HTML)`);
+  return {terms:finalTerms,htmlResults};
+}
+
+// ─── WAVE 2 ─────────────────────────────────────────────────
+async function wave2(query,terms,w1Results,opId){
+  Li('Wave 2: Multi-query result harvest');
+  setWave(2,'active',0);
+
+  const allResults=[];
+  // Seed with W1 HTML results (original query results)
+  w1Results.forEach(r=>allResults.push({...r,wave:1,keyword:query,waveScore:1}));
+
+  const total=terms.length;
+  for(let i=0;i<terms.length;i++){
+    if(abortFlag||runOpId!==opId)break;
+    const t=terms[i];
+    const q=`${query} ${t.term}`;
+    statusMsg('info',`W2 [${i+1}/${total}]: "${t.term}"`);
+    setWave(2,'active',Math.round(((i+0.5)/total)*100));
+
+    await sleep(cfg.delay);
+    const html=await fetchDDGHtml(q,opId).catch(e=>{
+      Lw(`W2 query fail: ${e.message}`);
+      return null;
+    });
+    if(html){
+      const {results,relatedSearches}=parseDDGHtml(html);
+      results.forEach(r=>allResults.push({...r,wave:2,keyword:t.term,termScore:t.score,waveScore:2}));
+      // Bonus: related searches from this query page feed back as extra context (not used for new queries, just logged)
+      if(relatedSearches.length)L(`W2[${i+1}] related: ${relatedSearches.slice(0,3).join(' | ')}`);
+      L(`W2[${i+1}] "${t.term}" → ${results.length} results`);
+    }
+    setWave(2,'active',Math.round(((i+1)/total)*100));
+  }
+
+  setWave(2,'done',100);
+  statusMsg('ok',`W2: ${allResults.length} raw results collected`);
+  L(`W2 done: ${allResults.length} results`);
+  return allResults;
+}
+
+// ─── WAVE 3 ─────────────────────────────────────────────────
+function wave3(query,allResults){
+  Li('Wave 3: Cross-wave scoring & deduplication');
+  setWave(3,'active',10);
+  statusMsg('info','W3: Computing relevance scores…');
+
+  const qToks=new Set(tokenize(query));
+
+  // Group by URL
+  const urlMap={};
+  allResults.forEach(r=>{
+    const key=r.url;
+    if(!urlMap[key]){urlMap[key]={...r,appearances:0,waves:new Set(),keywords:new Set(),totalTermScore:0};}
+    const m=urlMap[key];
+    m.appearances++;
+    m.waves.add(r.wave);
+    m.keywords.add(r.keyword||query);
+    m.totalTermScore+=(r.termScore||0);
+  });
+
+  setWave(3,'active',40);
+
+  // Score each URL
+  const scored=Object.values(urlMap).map(r=>{
+    let score=0;
+
+    // Appearance bonus (log scale)
+    score+=Math.log(1+r.appearances)*25;
+
+    // Wave diversity (appeared in multiple waves)
+    score+=r.waves.size*20;
+
+    // Keyword diversity (matched across many keywords)
+    score+=r.keywords.size*15;
+
+    // Content similarity to query
+    const contentToks=tokenize(r.title+' '+r.snippet);
+    const overlap=contentToks.filter(t=>qToks.has(t)).length;
+    const sim=qToks.size>0?overlap/qToks.size:0;
+    score+=sim*30;
+
+    // Term score contribution
+    score+=Math.min(r.totalTermScore/10,20);
+
+    // SEO adjustment
+    score+=seoScore(r);
+
+    // Domain diversity: penalize if same domain appears too much
+    const domainCount=Object.values(urlMap).filter(x=>x.domain===r.domain).length;
+    if(cfg.diversity&&domainCount>2)score-=(domainCount-2)*8;
+
+    return {...r,score:Math.round(score),sim:Math.round(sim*100)};
+  });
+
+  setWave(3,'active',75);
+
+  // Sort and dedupe domains if diversity on
+  scored.sort((a,b)=>b.score-a.score);
+
+  let final=scored;
+  if(cfg.diversity){
+    const seenDomains={};
+    final=scored.filter(r=>{
+      const d=r.domain;
+      seenDomains[d]=(seenDomains[d]||0)+1;
+      return seenDomains[d]<=2; // max 2 per domain
+    });
+  }
+
+  setWave(3,'done',100);
+  statusMsg('ok',`W3: Top ${Math.min(final.length,cfg.topN)} results finalized`);
+  L(`W3 done: ${final.length} unique scored results`);
+  return final.slice(0,cfg.topN);
+}
+
+// ─── MAIN RUN ───────────────────────────────────────────────
+async function runSearch(){
+  const query=$('qInput').value.trim();
+  if(!query||running)return;
+
+  // Mint new operation ID — any stale NGU loops from prior run will bail on opId check
+  const opId=++runOpId;
+
+  running=true;abortFlag=false;
+  nguState.active=false;
+  $('nguBar').classList.remove('show');
+  $('runBtn').disabled=true;
+  $('runBtn').innerHTML='<span class="pulsing">■</span> STOP';
+  $('runBtn').onclick=()=>{abortFlag=true;};
+
+  $('waveTrack').classList.add('show');
+  $('statusLog').classList.add('show');
+  $('statusLog').innerHTML='';
+  $('kwSection').classList.remove('show');
+  $('resultsSection').classList.remove('show');
+  $('emptyState').style.display='none';
+  $('topStatus').style.display='inline';
+
+  // Reset waves
+  ['w1','w2','w3'].forEach(w=>{
+    $(w+'fill').style.width='0';
+    $(w+'fill').className=`wave-fill${w==='w2'?' w2':w==='w3'?' w3':''}`;
+    $(w+'lbl').className='wave-lbl';
+    $(w+'stat').textContent='';
+  });
+
+  // Timer
+  elapsed=0;
+  clearInterval(elapsedTimer);
+  elapsedTimer=setInterval(()=>{
+    elapsed++;
+    $('elapsedLbl').textContent=elapsed+'s';
+  },1000);
+
+  $('etaLbl').textContent='Starting Wave 1…';
+  Li(`=== Search: "${query}" (op#${opId}) ===`);
+  if(cfg.ngu.enabled) Li('No-Give-Up mode ACTIVE — will hunt until found');
+
+  try{
+    // WAVE 1
+    const {terms,htmlResults}=await wave1(query,opId);
+    if(runOpId!==opId)return; // stale run
+    showKeywords(query,terms);
+
+    if(abortFlag||runOpId!==opId)throw new Error('Aborted by user');
+
+    // WAVE 2
+    $('etaLbl').textContent='Wave 2: Expanding queries…';
+    const allResults=await wave2(query,terms,htmlResults,opId);
+    if(runOpId!==opId)return;
+
+    if(abortFlag||runOpId!==opId)throw new Error('Aborted by user');
+
+    // WAVE 3
+    $('etaLbl').textContent='Wave 3: Scoring…';
+    const final=wave3(query,allResults);
+
+    lastResults=final;
+    renderResults(final,query);
+    saveHistory(query,final.length);
+    $('etaLbl').textContent=`Done · ${final.length} results · ${elapsed}s`;
+
+  }catch(e){
+    Le('Run error: '+e.message);
+    if(runOpId!==opId)return; // stale, ignore
+    statusMsg('err','Error: '+e.message);
+    $('etaLbl').textContent='Failed — '+e.message;
+    if(!abortFlag)showToast('Search failed. Check debug.');
+    $('emptyState').style.display='block';
+    $('emptyState').querySelector('.empty-icon').textContent='⚠';
+    $('emptyState').querySelector('.empty-title').textContent='Search Error';
+    $('emptyState').querySelector('.empty-sub').textContent=e.message+'\nProxy unavailable. Try again or enable No-Give-Up.';
+  }finally{
+    if(runOpId===opId){
+      running=false;
+      nguState.active=false;
+      $('nguBar').classList.remove('show');
+      clearInterval(elapsedTimer);
+      $('runBtn').disabled=false;
+      $('runBtn').innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> RUN';
+      $('runBtn').onclick=runSearch;
+    }
+  }
+}
+
+// ─── UI HELPERS ─────────────────────────────────────────────
+function setWave(n,state,pct){
+  const lbl=$(`w${n}lbl`),fill=$(`w${n}fill`),stat=$(`w${n}stat`);
+  lbl.className='wave-lbl '+(state==='done'?'done':'active');
+  fill.style.width=pct+'%';
+  if(state==='done'){
+    fill.classList.add('done');
+    stat.textContent='✓';
+  } else {
+    stat.textContent=pct+'%';
+  }
+}
+
+function statusMsg(type,msg){
+  const log=$('statusLog');
+  const ts=new Date().toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const el=document.createElement('div');
+  el.className=`status-entry ${type==='ok'?'ok':type==='err'?'err':type==='warn'?'warn':'info'}`;
+  el.innerHTML=`<span class="ts">${ts}</span><span class="msg">${escHtml(msg)}</span>`;
+  log.appendChild(el);
+  log.scrollTop=log.scrollHeight;
+  $('topStatus').textContent=msg.slice(0,40)+(msg.length>40?'…':'');
+}
+
+function showKeywords(query,terms){
+  const chips=$('kwChips');
+  chips.innerHTML='';
+
+  // Original query chip
+  const oc=document.createElement('div');
+  oc.className='chip kw-orig';
+  oc.innerHTML=`<span>${escHtml(query)}</span><span class="chip-score">QUERY</span>`;
+  chips.appendChild(oc);
+
+  terms.forEach((t,i)=>{
+    const c=document.createElement('div');
+    const cls=i<3?'kw-hi':i<6?'kw-md':'kw-lo';
+    // Show source icons: AC=autocomplete, R=related, H=html
+    const srcMap={autocomplete:'AC',instant_related:'IR',html_related:'HR'};
+    const srcTag=t.sources?t.sources.map(s=>srcMap[s]||s.slice(0,2).toUpperCase()).join('+'):'';
+    c.className=`chip ${cls}`;
+    c.innerHTML=`<span>${escHtml(t.term)}</span><span class="chip-score">${srcTag||t.score.toFixed(1)}</span>`;
+    chips.appendChild(c);
+  });
+
+  $('kwSection').classList.add('show');
+  $(`w1stat`).textContent=`${terms.length}kw`;
+}
+
+function renderResults(results,query){
+  const list=$('resultsList');
+  list.innerHTML='';
+
+  if(!results.length){
+    $('emptyState').style.display='block';
+    $('emptyState').querySelector('.empty-icon').textContent='○';
+    $('emptyState').querySelector('.empty-title').textContent='No results found';
+    $('emptyState').querySelector('.empty-sub').textContent='Try a different query or check your connection.';
+    return;
+  }
+
+  $('resultsSection').classList.add('show');
+  $('resultCount').querySelector('span').textContent=`${results.length} results`;
+
+  results.forEach((r,i)=>{
+    const card=document.createElement('a');
+    card.className='result-card';
+    card.href=r.url;
+    card.target='_blank';
+    card.rel='noopener noreferrer';
+
+    const rankCls=i<3?'rc-rank top3':'rc-rank';
+    const waveStr=[...r.waves].sort().map(w=>`W${w}`).join('+');
+    const kwStr=[...r.keywords].slice(0,2).join(', ');
+
+    card.innerHTML=`
+      <div class="${rankCls}">#${i+1}</div>
+      <div class="rc-title">${escHtml(r.title)}</div>
+      <div class="rc-url">${escHtml(r.domain)}</div>
+      ${r.snippet?`<div class="rc-snippet">${escHtml(r.snippet.slice(0,140))}${r.snippet.length>140?'…':''}</div>`:''}
+      <div class="rc-meta">
+        <span class="rc-badge score">⬆ ${r.score}</span>
+        <span class="rc-badge waves">${escHtml(waveStr)}</span>
+        <span class="rc-badge domain">${escHtml(r.domain.split('.')[0])}</span>
+      </div>`;
+    list.appendChild(card);
+  });
+
+  $(`w2stat`).textContent=results.length+'u';
+  $(`w3stat`).textContent='TOP '+results.length;
+}
+
+function showToast(msg,dur=3000){
+  const t=$('toast');
+  t.textContent=msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),dur);
+}
+
+// ─── SORT ───────────────────────────────────────────────────
+$('sortLbl').onclick=function(){
+  if(!lastResults.length)return;
+  sortMode=sortMode==='relevance'?'domain':'relevance';
+  this.textContent=sortMode==='relevance'?'↓ relevance':'↓ domain';
+  const sorted=sortMode==='relevance'
+    ?[...lastResults].sort((a,b)=>b.score-a.score)
+    :[...lastResults].sort((a,b)=>a.domain.localeCompare(b.domain));
+  renderResults(sorted,$('qInput').value.trim());
+};
+
+// ─── HISTORY ────────────────────────────────────────────────
+function saveHistory(query,count){
+  histArr.unshift({q:query,count,ts:Date.now()});
+  histArr=histArr.slice(0,20);
+  try{localStorage.setItem(HIST_KEY,JSON.stringify(histArr));}catch{}
+}
+function loadHistory(){
+  try{const s=localStorage.getItem(HIST_KEY);if(s)histArr=JSON.parse(s);}catch{}
+}
+function renderHistory(){
+  const body=$('historyBody');
+  body.innerHTML='';
+  if(!histArr.length){
+    body.innerHTML='<div class="empty-state" style="padding:20px 0"><div class="empty-icon">⏱</div><div class="empty-sub">No searches yet</div></div>';
+    return;
+  }
+  histArr.forEach((h,i)=>{
+    const el=document.createElement('div');
+    el.className='hist-item';
+    const dt=new Date(h.ts).toLocaleDateString('en',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    el.innerHTML=`<span class="hist-q">${escHtml(h.q)}</span><span class="hist-meta">${h.count} results · ${dt}</span><button class="hist-del" data-i="${i}">✕</button>`;
+    el.onclick=e=>{
+      if(e.target.classList.contains('hist-del'))return;
+      $('qInput').value=h.q;
+      closeDrawer('history');
+      runSearch();
+    };
+    body.appendChild(el);
+  });
+  body.querySelectorAll('.hist-del').forEach(btn=>{
+    btn.onclick=e=>{
+      e.stopPropagation();
+      histArr.splice(+btn.dataset.i,1);
+      try{localStorage.setItem(HIST_KEY,JSON.stringify(histArr));}catch{}
+      renderHistory();
+    };
+  });
+}
+
+// ─── SETTINGS ───────────────────────────────────────────────
+function saveCfg(){
+  try{localStorage.setItem(CFG_KEY,JSON.stringify(cfg));}catch{}
+}
+function loadCfg(){
+  try{
+    const s=localStorage.getItem(CFG_KEY);
+    if(s){
+      const loaded=JSON.parse(s);
+      // Migrate old ngu:boolean to new ngu:{enabled:boolean,...}
+      if(typeof loaded.ngu==='boolean'){
+        const oldNgu=loaded.ngu;
+        loaded.ngu={enabled:oldNgu,delay:1000,proxyRetries:3,multiTask:false};
+      }
+      Object.assign(cfg,loaded);
+    }
+  }catch{}
+  
+  // Sync all inputs using utilities
+  syncInput('cfgMaxKw','maxKw');
+  syncInput('cfgResPerKw','resPerKw');
+  syncInput('cfgTopN','topN');
+  syncInput('cfgDelay','delay');
+  syncInput('cfgNguDelay','ngu.delay');
+  syncInput('cfgNguProxyRetries','ngu.proxyRetries');
+  syncToggle('cfgAntiSeo','antiSeo');
+  syncToggle('cfgDiversity','diversity');
+  syncToggle('cfgRetry','retry');
+  syncToggle('cfgNguEnabled','ngu.enabled');
+  
+  // Show/hide NGU rows based on enabled state
+  const nguOn=cfg.ngu.enabled;
+  $('nguDelayRow').style.display=nguOn?'':'none';
+  $('nguRetriesRow').style.display=nguOn?'':'none';
+  
+  // Populate proxy dropdown (only alive)
+  const sel=$('cfgPinnedProxy');
+  sel.innerHTML='<option value="-1">Auto (cycle alive)</option>';
+  const alive=PROXY_META.filter(p=>p.health==='alive');
+  const dead=PROXY_META.filter(p=>p.health==='dead');
+  alive.forEach(p=>{
+    const idx=PROXY_META.indexOf(p);
+    const opt=document.createElement('option');
+    opt.value=idx;
+    opt.textContent=`✓ [${idx}] ${p.name}`;
+    sel.appendChild(opt);
+  });
+  if(dead.length&&alive.length){
+    const sep=document.createElement('option');
+    sep.disabled=true;
+    sep.textContent='───────────────';
+    sel.appendChild(sep);
+  }
+  dead.forEach(p=>{
+    const idx=PROXY_META.indexOf(p);
+    const opt=document.createElement('option');
+    opt.value=idx;
+    opt.textContent=`✗ [${idx}] ${p.name} (dead)`;
+    opt.style.color='var(--txt3)';
+    sel.appendChild(opt);
+  });
+  sel.value=cfg.pinnedProxy;
+}
+
+// Toggle handlers - simplified
+['cfgAntiSeo','cfgDiversity','cfgRetry'].forEach(id=>{
+  const path={cfgAntiSeo:'antiSeo',cfgDiversity:'diversity',cfgRetry:'retry'}[id];
+  $(id).onclick=function(){
+    const v=this.dataset.val!=='1';
+    syncToggle(id,path);
+    updateCfg(path,v);
+  };
+});
+
+// NGU enabled toggle with show/hide logic
+$('cfgNguEnabled').onclick=function(){
+  const v=this.dataset.val!=='1';
+  // Update config first
+  updateCfg('ngu.enabled',v);
+  // Then sync UI (reads from updated cfg)
+  this.classList.toggle('on',v);
+  this.dataset.val=v?'1':'0';
+  // Show/hide NGU rows
+  $('nguDelayRow').style.display=v?'':'none';
+  $('nguRetriesRow').style.display=v?'':'none';
+};
+
+// Number inputs - simplified
+['cfgMaxKw','cfgResPerKw','cfgTopN','cfgDelay','cfgNguDelay','cfgNguProxyRetries','cfgPinnedProxy'].forEach(id=>{
+  const pathMap={
+    cfgMaxKw:'maxKw',cfgResPerKw:'resPerKw',cfgTopN:'topN',cfgDelay:'delay',
+    cfgNguDelay:'ngu.delay',cfgNguProxyRetries:'ngu.proxyRetries',cfgPinnedProxy:'pinnedProxy'
+  };
+  $(id).onchange=function(){
+    updateCfg(pathMap[id],+this.value);
+    if(id==='cfgPinnedProxy'){
+      const idx=+this.value;
+      const name=idx>=0?PROXY_META[idx]?.name:'auto';
+      showToast(`Pinned to: ${name}`);
+    }
+  };
+});
+
+// Retest button
+$('btnRetestProxies').onclick=()=>{
+  Li('Manual proxy retest requested');
+  try{localStorage.removeItem(PROXY_HEALTH_KEY);}catch{}
+  showToast('Retesting proxies…');
+  closeDrawer('settings');
+  $('runBtn').disabled=true;
+  $('qInput').disabled=true;
+  $('qInput').placeholder='Retesting proxies…';
+  initProxyHealth().then(alive=>{
+    loadCfg();
+    showToast(`Retest complete: ${alive} alive`);
+    $('runBtn').disabled=false;
+    $('qInput').disabled=false;
+    $('qInput').placeholder='Enter search query…';
+  });
+};
+
+// ─── DRAWER ─────────────────────────────────────────────────
+['settings','history','debug','changelog'].forEach(name=>{
+  $(`${name}Overlay`).onclick=()=>closeDrawer(name);
+  $(`${name}Close`).onclick=()=>closeDrawer(name);
+});
+$('btnSettings').onclick=()=>{loadCfg();openDrawer('settings');};
+$('btnHistory').onclick=()=>{renderHistory();openDrawer('history');};
+$('openDebug').onclick=()=>{closeDrawer('settings');openDrawer('debug');};
+$('openChangelog').onclick=()=>{renderChangelog();closeDrawer('settings');openDrawer('changelog');};
+$('clearHistory').onclick=()=>{
+  histArr=[];
+  try{localStorage.removeItem(HIST_KEY);}catch{}
+  showToast('History cleared');
+  closeDrawer('settings');
+};
+$('clearDebug').onclick=()=>{
+  dbLines.length=0;
+  $('debugBody').innerHTML='';
+  $('debugCount').textContent='0 lines';
+};
+$('exportDebug').onclick=()=>{
+  const txt=dbLines.map(l=>`[${l.ts}] ${l.lvl.toUpperCase()} ${l.msg}`).join('\n');
+  const b=new Blob([txt],{type:'text/plain'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(b);
+  a.download=`trer-debug-${Date.now()}.txt`;
+  a.click();
+};
+
+// ─── CHANGELOG ──────────────────────────────────────────────
+function renderChangelog(){
+  const list=$('changelogList');
+  list.innerHTML='';
+  CHANGELOG.forEach(c=>{
+    const el=document.createElement('div');
+    el.className='cl-ver';
+    el.innerHTML=`
+      <div class="cl-ver-head">
+        <span class="cl-ver-num">v${c.v}</span>
+        <span class="cl-ver-date">${c.changes||''}</span>
+      </div>
+      <div class="cl-notes">${escHtml(c.notes)}</div>`;
+    list.appendChild(el);
+  });
+}
+
+// ─── RUN BUTTON ─────────────────────────────────────────────
+$('runBtn').onclick=runSearch;
+$('qInput').onkeydown=e=>{if(e.key==='Enter')runSearch();};
+
+// ─── INIT ───────────────────────────────────────────────────
+loadCfg();
+loadHistory();
+L('TRER v'+VER+' init');
+Li('Three-Wave Semantic Resolver ready');
+
+if(SELF_ORIGIN){
+  Li('Self-serve relay active: '+SELF_ORIGIN);
+  L('Proxy count: '+PROXY_BUILDERS.length+' (relay at idx 0)');
+}else{
+  L('file:// mode — using public CORS proxies ('+PROXY_BUILDERS.length+')');
+}
+
+// Proxy health check — block UI until complete
+const cached=loadProxyHealth();
+
+if(!cached){
+  // No valid cache — block UI and run tests
+  Li('No valid cache (v'+VER+') — running simultaneous proxy tests…');
+  $('runBtn').disabled=true;
+  $('qInput').disabled=true;
+  $('qInput').placeholder='Testing proxies, please wait…';
+  
+  initProxyHealth().then(aliveCount=>{
+    loadCfg(); // refresh dropdown with results
+    Li(`Ready to search with ${aliveCount} working proxies`);
+    $('qInput').placeholder='Enter search query…';
+  }).catch(e=>{
+    Le('Proxy test error: '+e.message);
+    $('runBtn').disabled=false;
+    $('qInput').disabled=false;
+    $('qInput').placeholder='Enter search query…';
+    showToast('Proxy test failed — see debug');
+  });
+}else{
+  // Valid cache — ready immediately
+  const alive=PROXY_META.filter(p=>p.health==='alive').length;
+  Li(`Using cached proxy health: ${alive} alive, ${PROXY_META.length-alive} dead`);
+  loadCfg(); // populate dropdown with cached health
+}
+</script>
+</body>
+</html>
