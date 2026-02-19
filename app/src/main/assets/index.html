@@ -413,6 +413,14 @@ body{display:flex;flex-direction:column;max-width:520px;margin:0 auto;min-height
       <button class="sm-btn" id="clearHistory">CLEAR</button>
     </div>
 
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-lbl">Clear cache</div>
+        <div class="setting-sub">Remove web data & cookies</div>
+      </div>
+      <button class="sm-btn" id="clearCache">CLEAR</button>
+    </div>
+
     <div style="text-align:center;padding-top:16px">
       <span style="font-size:9px;color:var(--txt3)">TRER v1.7 · Three-Wave Semantic Resolver</span>
     </div>
@@ -756,6 +764,7 @@ $('btnHistory').onclick = () => { TRERBridge.loadHistory(); openDrawer('history'
 $('openDebug').onclick = () => { closeDrawer('settings'); openDrawer('debug'); };
 $('openChangelog').onclick = () => { renderChangelog(); closeDrawer('settings'); openDrawer('changelog'); };
 $('clearHistory').onclick = () => { TRERBridge.clearHistory(); closeDrawer('settings'); };
+$('clearCache').onclick = () => { TRERBridge.clearCache(); closeDrawer('settings'); };
 $('clearDebug').onclick = () => { $('debugBody').innerHTML = ''; $('debugCount').textContent = '0 lines'; };
 $('btnRefresh').onclick = () => { location.reload(); };
 
@@ -787,7 +796,10 @@ $('cfgNguEnabled').onclick = function () {
 });
 
 $('btnRetestProxies').onclick = () => { TRERBridge.retestProxies(); closeDrawer('settings'); };
-$('exportDebug').onclick = () => { TRERBridge.exportDebug(); };
+$('exportDebug').onclick = () => {
+    const lines = Array.from($('debugBody').children).map(el => el.innerText);
+    TRERBridge.exportDebug(lines.join('\n'));
+};
 
 function renderChangelog() {
     const list = $('changelogList');

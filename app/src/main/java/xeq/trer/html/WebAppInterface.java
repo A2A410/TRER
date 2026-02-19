@@ -1,11 +1,15 @@
 package xeq.trer.html;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
+import android.webkit.WebStorage;
 import android.webkit.WebView;
 import com.google.gson.Gson;
 import java.util.ArrayList;
@@ -27,24 +31,14 @@ public class WebAppInterface implements TREREngine.EngineCallback {
 
     @JavascriptInterface
     public void init() {
-        runOnMainThread(new Runnable() {
-            @Override
-            public void run() {
-                callJs("TRER_UI.updateConfig", mGson.toJson(mCfg));
-            }
-        });
+        callJs("TRER_UI.updateConfig", mGson.toJson(mCfg));
     }
 
     @JavascriptInterface
     public void runSearch(String query) {
         if (mEngine != null) mEngine.abort();
         mEngine = new TREREngine(mCfg, this);
-        runOnMainThread(new Runnable() {
-            @Override
-            public void run() {
-                callJs("TRER_UI.setRunning", true);
-            }
-        });
+        callJs("TRER_UI.setRunning", true);
         mEngine.run(query);
     }
 
@@ -62,12 +56,7 @@ public class WebAppInterface implements TREREngine.EngineCallback {
     @JavascriptInterface
     public void loadHistory() {
         final List<Models.HistoryEntry> hist = Storage.loadHistory(mContext);
-        runOnMainThread(new Runnable() {
-            @Override
-            public void run() {
-                callJs("TRER_UI.updateHistory", mGson.toJson(hist));
-            }
-        });
+        callJs("TRER_UI.updateHistory", mGson.toJson(hist));
     }
 
     @JavascriptInterface
@@ -103,8 +92,34 @@ public class WebAppInterface implements TREREngine.EngineCallback {
     }
 
     @JavascriptInterface
-    public void exportDebug() {
-        onStatus("info", "Debug export not implemented");
+    public void clearCache() {
+        mWebView.post(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    mWebView.clearCache(true);
+                    CookieManager.getInstance().removeAllCookie();
+                    WebStorage.getInstance().deleteAllData();
+                    onStatus("ok", "Cache and Web Data cleared");
+                } catch (Exception e) {
+                    logDebug("error", "Failed to clear cache: " + e.getMessage());
+                }
+            }
+        });
+    }
+
+    @JavascriptInterface
+    public void exportDebug(String text) {
+        try {
+            ClipboardManager clipboard = (ClipboardManager) mContext.getSystemService(Context.CLIPBOARD_SERVICE);
+            ClipData clip = ClipData.newPlainText("TRER Debug Log", text);
+            if (clipboard != null) {
+                clipboard.setPrimaryClip(clip);
+                onStatus("ok", "Debug logs copied to clipboard");
+            }
+        } catch (Exception e) {
+            logDebug("error", "Failed to copy: " + e.getMessage());
+        }
     }
 
     private void runOnMainThread(Runnable r) {
@@ -115,105 +130,79 @@ public class WebAppInterface implements TREREngine.EngineCallback {
 
     @Override
     public void onStatus(final String type, final String msg) {
-        runOnMainThread(new Runnable() {
-            @Override
-            public void run() {
-                callJs("TRER_UI.addStatusEntry", type, msg);
-            }
-        });
+        callJs("TRER_UI.addStatusEntry", type, msg);
     }
 
     @Override
     public void onWaveUpdate(final int n, final String state, final int pct, final String stat) {
-        runOnMainThread(new Runnable() {
-            @Override
-            public void run() {
-                callJs("TRER_UI.updateWave", n, state, pct, stat);
-            }
-        });
+        callJs("TRER_UI.updateWave", n, state, pct, stat);
     }
 
     @Override
     public void onKeywordsFound(final String query, final List<Models.ExpansionTerm> terms) {
         final String json = mGson.toJson(terms);
-        runOnMainThread(new Runnable() {
-            @Override
-            public void run() {
-                callJs("TRER_UI.setKeywords", query, json);
-            }
-        });
+        callJs("TRER_UI.setKeywords", query, json);
     }
 
     @Override
     public void onResultsFound(final List<Models.SearchResult> results, final String query) {
         final String json = mGson.toJson(results);
-        runOnMainThread(new Runnable() {
-            @Override
-            public void run() {
-                callJs("TRER_UI.setResults", json, query);
-                List<Models.HistoryEntry> hist = Storage.loadHistory(mContext);
-                hist.add(0, new Models.HistoryEntry(query, results.size(), System.currentTimeMillis()));
-                if (hist.size() > 20) hist = hist.subList(0, 20);
-                Storage.saveHistory(mContext, hist);
-            }
-        });
+        callJs("TRER_UI.setResults", json, query);
+
+        List<Models.HistoryEntry> hist = Storage.loadHistory(mContext);
+        hist.add(0, new Models.HistoryEntry(query, results.size(), System.currentTimeMillis()));
+        if (hist.size() > 20) {
+            hist = new ArrayList<>(hist.subList(0, 20));
+        }
+        Storage.saveHistory(mContext, hist);
     }
 
     @Override
     public void onProgress(final String msg) {
-        runOnMainThread(new Runnable() {
-            @Override
-            public void run() {
-                callJs("TRER_UI.updateEta", msg);
-            }
-        });
+        callJs("TRER_UI.updateEta", msg);
     }
 
     @Override
     public void onNguUpdate(final boolean show, final String text, final int attempt, final int pct) {
-        runOnMainThread(new Runnable() {
-            @Override
-            public void run() {
-                callJs("TRER_UI.updateNgu", show, text, attempt, pct);
-            }
-        });
+        callJs("TRER_UI.updateNgu", show, text, attempt, pct);
     }
 
     @Override
     public void onFinished(boolean success) {
-        runOnMainThread(new Runnable() {
-            @Override
-            public void run() {
-                callJs("TRER_UI.setRunning", false);
-            }
-        });
+        callJs("TRER_UI.setRunning", false);
     }
 
     @Override
     public void logDebug(final String lvl, final String msg) {
         final String ts = new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(new java.util.Date());
-        runOnMainThread(new Runnable() {
-            @Override
-            public void run() {
-                callJs("TRER_UI.logDebug", lvl, msg, ts);
-            }
-        });
+        callJs("TRER_UI.logDebug", lvl, msg, ts);
     }
 
     private void callJs(String method, Object... args) {
         StringBuilder sb = new StringBuilder();
-        sb.append("javascript:").append(method).append("(");
+        sb.append(method).append("(");
         for (int i = 0; i < args.length; i++) {
             if (i > 0) sb.append(",");
             Object arg = args[i];
             if (arg instanceof String) {
-                String escaped = ((String)arg).replace("'", "\\'").replace("\n", "\\n");
+                String s = (String) arg;
+                String escaped = s.replace("\\", "\\\\")
+                                  .replace("'", "\\'")
+                                  .replace("\n", "\\n")
+                                  .replace("\r", "\\r");
                 sb.append("'").append(escaped).append("'");
             } else {
                 sb.append(String.valueOf(arg));
             }
         }
         sb.append(")");
-        mWebView.loadUrl(sb.toString());
+        final String script = sb.toString();
+
+        mWebView.post(new Runnable() {
+            @Override
+            public void run() {
+                mWebView.loadUrl("javascript:" + script);
+            }
+        });
     }
 }
