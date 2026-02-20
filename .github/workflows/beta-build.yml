@@ -1,4 +1,4 @@
-name: Build Beta APK
+name: Build Beta APKs
 
 on:
   push:
