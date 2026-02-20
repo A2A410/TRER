@@ -1,4 +1,4 @@
-name: Build Beta APKs
+name: Build Beta APK
 
 on:
   push:
@@ -30,3 +30,15 @@ jobs:
         with:
           name: TRER-Beta-APK
           path: app/build/outputs/apk/beta/*.apk
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        with:
+          tag_name: beta-${{ github.run_number }}
+          name: Beta Build v${{ github.run_number }}
+          draft: false
+          prerelease: true
+          files: app/build/outputs/apk/beta/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
