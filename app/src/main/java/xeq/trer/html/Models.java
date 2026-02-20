@@ -8,6 +8,7 @@ import java.util.Set;
 public class Models {
 
     public static class Config {
+        public String engine = "ddg_lite"; // "ddg_lite", "google_lite", "rotate"
         public int maxKw = 15;
         public int resPerKw = 5;
         public int topN = 20;

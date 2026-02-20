@@ -298,6 +298,17 @@ body{display:flex;flex-direction:column;max-width:520px;margin:0 auto;min-height
     <div class="setting-section">Search</div>
     <div class="setting-row">
       <div class="setting-info">
+        <div class="setting-lbl">Search Engine</div>
+        <div class="setting-sub">Source for direct fetching</div>
+      </div>
+      <select class="num-input" id="cfgEngine" style="width:auto;padding:5px 8px">
+        <option value="ddg_lite">DDG Lite</option>
+        <option value="google_lite">Google Lite</option>
+        <option value="rotate">Rotate</option>
+      </select>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
         <div class="setting-lbl">Max expansion terms</div>
         <div class="setting-sub">W1 output keywords (5–20)</div>
       </div>
@@ -369,23 +380,6 @@ body{display:flex;flex-direction:column;max-width:520px;margin:0 auto;min-height
       <input class="num-input" id="cfgNguProxyRetries" type="number" min="1" max="10" value="3">
     </div>
 
-    <div class="setting-section">Proxy</div>
-    <div class="setting-row">
-      <div class="setting-info">
-        <div class="setting-lbl">Pin to proxy</div>
-        <div class="setting-sub">Lock to one working proxy</div>
-      </div>
-      <select class="num-input" id="cfgPinnedProxy" style="width:auto;padding:5px 8px">
-        <option value="-1">Auto (cycle alive)</option>
-      </select>
-    </div>
-    <div class="setting-row">
-      <div class="setting-info">
-        <div class="setting-lbl">Force retest proxies</div>
-        <div class="setting-sub">Ignore cache, test all now</div>
-      </div>
-      <button class="sm-btn" id="btnRetestProxies">RETEST</button>
-    </div>
 
     <div class="setting-section">System</div>
 
@@ -504,6 +498,7 @@ const CHANGELOG=[
 // ─── CONFIG ────────────────────────────────────────────────
 const CFG_KEY='trer_cfg_v1',HIST_KEY='trer_hist_v1',PROXY_HEALTH_KEY='trer_proxy_health';
 let cfg={
+  engine:'ddg_lite',
   maxKw:15,resPerKw:5,topN:20,delay:600,
   antiSeo:true,diversity:true,retry:true,
   method:'default', // 'default' | 'x-verify'
@@ -1645,6 +1640,7 @@ function loadCfg(){
   }catch{}
   
   // Sync all inputs using utilities
+  syncInput('cfgEngine','engine');
   syncInput('cfgMaxKw','maxKw');
   syncInput('cfgResPerKw','resPerKw');
   syncInput('cfgTopN','topN');
@@ -1661,33 +1657,6 @@ function loadCfg(){
   $('nguDelayRow').style.display=nguOn?'':'none';
   $('nguRetriesRow').style.display=nguOn?'':'none';
   
-  // Populate proxy dropdown (only alive)
-  const sel=$('cfgPinnedProxy');
-  sel.innerHTML='<option value="-1">Auto (cycle alive)</option>';
-  const alive=PROXY_META.filter(p=>p.health==='alive');
-  const dead=PROXY_META.filter(p=>p.health==='dead');
-  alive.forEach(p=>{
-    const idx=PROXY_META.indexOf(p);
-    const opt=document.createElement('option');
-    opt.value=idx;
-    opt.textContent=`✓ [${idx}] ${p.name}`;
-    sel.appendChild(opt);
-  });
-  if(dead.length&&alive.length){
-    const sep=document.createElement('option');
-    sep.disabled=true;
-    sep.textContent='───────────────';
-    sel.appendChild(sep);
-  }
-  dead.forEach(p=>{
-    const idx=PROXY_META.indexOf(p);
-    const opt=document.createElement('option');
-    opt.value=idx;
-    opt.textContent=`✗ [${idx}] ${p.name} (dead)`;
-    opt.style.color='var(--txt3)';
-    sel.appendChild(opt);
-  });
-  sel.value=cfg.pinnedProxy;
 }
 
 // Toggle handlers - simplified
@@ -1714,37 +1683,18 @@ $('cfgNguEnabled').onclick=function(){
 };
 
 // Number inputs - simplified
-['cfgMaxKw','cfgResPerKw','cfgTopN','cfgDelay','cfgNguDelay','cfgNguProxyRetries','cfgPinnedProxy'].forEach(id=>{
+['cfgMaxKw','cfgResPerKw','cfgTopN','cfgDelay','cfgNguDelay','cfgNguProxyRetries'].forEach(id=>{
   const pathMap={
     cfgMaxKw:'maxKw',cfgResPerKw:'resPerKw',cfgTopN:'topN',cfgDelay:'delay',
-    cfgNguDelay:'ngu.delay',cfgNguProxyRetries:'ngu.proxyRetries',cfgPinnedProxy:'pinnedProxy'
+    cfgNguDelay:'ngu.delay',cfgNguProxyRetries:'ngu.proxyRetries'
   };
   $(id).onchange=function(){
     updateCfg(pathMap[id],+this.value);
-    if(id==='cfgPinnedProxy'){
-      const idx=+this.value;
-      const name=idx>=0?PROXY_META[idx]?.name:'auto';
-      showToast(`Pinned to: ${name}`);
-    }
   };
 });
 
-// Retest button
-$('btnRetestProxies').onclick=()=>{
-  Li('Manual proxy retest requested');
-  try{localStorage.removeItem(PROXY_HEALTH_KEY);}catch{}
-  showToast('Retesting proxies…');
-  closeDrawer('settings');
-  $('runBtn').disabled=true;
-  $('qInput').disabled=true;
-  $('qInput').placeholder='Retesting proxies…';
-  initProxyHealth().then(alive=>{
-    loadCfg();
-    showToast(`Retest complete: ${alive} alive`);
-    $('runBtn').disabled=false;
-    $('qInput').disabled=false;
-    $('qInput').placeholder='Enter search query…';
-  });
+$('cfgEngine').onchange=function(){
+  updateCfg('engine',this.value);
 };
 
 // ─── DRAWER ─────────────────────────────────────────────────
@@ -1758,7 +1708,7 @@ $('openDebug').onclick=()=>{closeDrawer('settings');openDrawer('debug');};
 $('openChangelog').onclick=()=>{renderChangelog();closeDrawer('settings');openDrawer('changelog');};
 $('clearHistory').onclick=()=>{
   histArr=[];
-  try{localStorage.removeItem(HIST_KEY);}catch{}
+  try{localStorage.setItem(HIST_KEY)},JSON.stringify(histArr));}catch{}
   showToast('History cleared');
   closeDrawer('settings');
 };

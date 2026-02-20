@@ -298,6 +298,17 @@ body{display:flex;flex-direction:column;max-width:520px;margin:0 auto;min-height
     <div class="setting-section">Search</div>
     <div class="setting-row">
       <div class="setting-info">
+        <div class="setting-lbl">Search Engine</div>
+        <div class="setting-sub">Source for direct fetching</div>
+      </div>
+      <select class="num-input" id="cfgEngine" style="width:auto;padding:5px 8px">
+        <option value="ddg_lite">DDG Lite</option>
+        <option value="google_lite">Google Lite</option>
+        <option value="rotate">Rotate</option>
+      </select>
+    </div>
+    <div class="setting-row">
+      <div class="setting-info">
         <div class="setting-lbl">Max expansion terms</div>
         <div class="setting-sub">W1 output keywords (5–20)</div>
       </div>
@@ -369,23 +380,6 @@ body{display:flex;flex-direction:column;max-width:520px;margin:0 auto;min-height
       <input class="num-input" id="cfgNguProxyRetries" type="number" min="1" max="10" value="3">
     </div>
 
-    <div class="setting-section">Proxy</div>
-    <div class="setting-row">
-      <div class="setting-info">
-        <div class="setting-lbl">Pin to proxy</div>
-        <div class="setting-sub">Lock to one working proxy</div>
-      </div>
-      <select class="num-input" id="cfgPinnedProxy" style="width:auto;padding:5px 8px">
-        <option value="-1">Auto (cycle alive)</option>
-      </select>
-    </div>
-    <div class="setting-row">
-      <div class="setting-info">
-        <div class="setting-lbl">Force retest proxies</div>
-        <div class="setting-sub">Ignore cache, test all now</div>
-      </div>
-      <button class="sm-btn" id="btnRetestProxies">RETEST</button>
-    </div>
 
     <div class="setting-section">System</div>
 
@@ -502,6 +496,7 @@ const CHANGELOG=[
 ];
 
 let cfg = {
+  engine:'ddg_lite',
   maxKw:15,resPerKw:5,topN:20,delay:600,
   antiSeo:true,diversity:true,retry:true,
   ngu:{enabled:false,delay:1000,proxyRetries:3},
@@ -726,6 +721,7 @@ function renderHistory(histArr) {
 }
 
 function syncUiFromCfg() {
+  $('cfgEngine').value = cfg.engine || 'ddg_lite';
   $('cfgMaxKw').value = cfg.maxKw;
   $('cfgResPerKw').value = cfg.resPerKw;
   $('cfgTopN').value = cfg.topN;
@@ -738,7 +734,6 @@ function syncUiFromCfg() {
   $('cfgNguEnabled').classList.toggle('on', !!cfg.ngu.enabled);
   $('nguDelayRow').style.display = cfg.ngu.enabled ? '' : 'none';
   $('nguRetriesRow').style.display = cfg.ngu.enabled ? '' : 'none';
-  // Proxy dropdown would be populated here if needed, but Java handles proxies now
 }
 
 function updateCfg(path, val) {
@@ -794,6 +789,10 @@ $('cfgNguEnabled').onclick = function () {
         updateCfg(pathMap[id], +this.value);
     };
 });
+
+$('cfgEngine').onchange = function() {
+    updateCfg('engine', this.value);
+};
 
 $('btnRetestProxies').onclick = () => { TRERBridge.retestProxies(); closeDrawer('settings'); };
 $('exportDebug').onclick = () => {

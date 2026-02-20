@@ -93,19 +93,29 @@ public class WebAppInterface implements TREREngine.EngineCallback {
 
     @JavascriptInterface
     public void clearCache() {
-        mWebView.post(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    mWebView.clearCache(true);
-                    CookieManager.getInstance().removeAllCookie();
-                    WebStorage.getInstance().deleteAllData();
-                    onStatus("ok", "Cache and Web Data cleared");
-                } catch (Exception e) {
-                    logDebug("error", "Failed to clear cache: " + e.getMessage());
-                }
+        runOnMainThread(new ClearCacheRunnable(mWebView, this));
+    }
+
+    private static class ClearCacheRunnable implements Runnable {
+        private final WebView webView;
+        private final WebAppInterface bridge;
+
+        ClearCacheRunnable(WebView webView, WebAppInterface bridge) {
+            this.webView = webView;
+            this.bridge = bridge;
+        }
+
+        @Override
+        public void run() {
+            try {
+                webView.clearCache(true);
+                CookieManager.getInstance().removeAllCookie();
+                WebStorage.getInstance().deleteAllData();
+                bridge.onStatus("ok", "Cache and Web Data cleared");
+            } catch (Exception e) {
+                bridge.logDebug("error", "Failed to clear cache: " + e.getMessage());
             }
-        });
+        }
     }
 
     @JavascriptInterface
@@ -179,30 +189,40 @@ public class WebAppInterface implements TREREngine.EngineCallback {
     }
 
     private void callJs(String method, Object... args) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(method).append("(");
-        for (int i = 0; i < args.length; i++) {
-            if (i > 0) sb.append(",");
-            Object arg = args[i];
-            if (arg instanceof String) {
-                String s = (String) arg;
-                String escaped = s.replace("\\", "\\\\")
-                                  .replace("'", "\\'")
-                                  .replace("\n", "\\n")
-                                  .replace("\r", "\\r");
-                sb.append("'").append(escaped).append("'");
-            } else {
-                sb.append(String.valueOf(arg));
-            }
-        }
-        sb.append(")");
-        final String script = sb.toString();
+        runOnMainThread(new CallJsRunnable(mWebView, method, args));
+    }
 
-        mWebView.post(new Runnable() {
-            @Override
-            public void run() {
-                mWebView.loadUrl("javascript:" + script);
+    private static class CallJsRunnable implements Runnable {
+        private final WebView webView;
+        private final String method;
+        private final Object[] args;
+
+        CallJsRunnable(WebView webView, String method, Object[] args) {
+            this.webView = webView;
+            this.method = method;
+            this.args = args;
+        }
+
+        @Override
+        public void run() {
+            StringBuilder sb = new StringBuilder();
+            sb.append(method).append("(");
+            for (int i = 0; i < args.length; i++) {
+                if (i > 0) sb.append(",");
+                Object arg = args[i];
+                if (arg instanceof String) {
+                    String s = (String) arg;
+                    String escaped = s.replace("\\", "\\\\")
+                                      .replace("'", "\\'")
+                                      .replace("\n", "\\n")
+                                      .replace("\r", "\\r");
+                    sb.append("'").append(escaped).append("'");
+                } else {
+                    sb.append(String.valueOf(arg));
+                }
             }
-        });
+            sb.append(")");
+            webView.loadUrl("javascript:" + sb.toString());
+        }
     }
 }
