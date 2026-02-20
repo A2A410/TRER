@@ -379,6 +379,7 @@ body{display:flex;flex-direction:column;max-width:520px;margin:0 auto;min-height
       </div>
       <select class="num-input" id="cfgPinnedProxy" style="width:auto;padding:5px 8px">
         <option value="-1">Auto (cycle alive)</option>
+        <option value="-2">Direct only</option>
       </select>
     </div>
     <div class="setting-row">
@@ -424,6 +425,17 @@ body{display:flex;flex-direction:column;max-width:520px;margin:0 auto;min-height
     </div>
 
     <div class="setting-section" id="torSection">Tor Services</div>
+
+    <div id="torStatusCard" style="background:var(--bg3);border-radius:var(--rad);padding:10px 12px;margin-bottom:16px;border:1px solid #ffffff10;display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:10px;font-weight:700;color:var(--txt2)">STATUS</span>
+        <span id="torStatusBadge" style="font-size:9px;padding:2px 6px;border-radius:4px;background:var(--bg4);color:var(--txt3)">UNKNOWN</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="sm-btn" id="btnForceRebuild" style="flex:1;border-color:var(--warn)40;color:var(--warn)">FORCE REBUILD</button>
+      </div>
+    </div>
+
     <div class="setting-row" id="torMasterRow">
       <div class="setting-info">
         <div class="setting-lbl">Master switch</div>
@@ -437,6 +449,13 @@ body{display:flex;flex-direction:column;max-width:520px;margin:0 auto;min-height
         <div class="setting-sub">Reroute all requests via Tor</div>
       </div>
       <div class="toggle" id="cfgTorRoute"></div>
+    </div>
+    <div class="setting-row" id="torAutoRebuildRow">
+      <div class="setting-info">
+        <div class="setting-lbl">Auto Rebuild</div>
+        <div class="setting-sub">Circuit rebuild on connection block</div>
+      </div>
+      <div class="toggle" id="cfgTorAutoRebuild"></div>
     </div>
 
     <div style="text-align:center;padding-top:16px">
@@ -589,6 +608,23 @@ window.TRER_UI = {
         $('nguText').textContent = text;
         $('nguAttempt').textContent = '#' + attempt;
         $('nguDelayFill').style.width = pct + '%';
+    },
+    updateTorStatus: (status) => {
+        const b = $('torStatusBadge');
+        b.textContent = status;
+        if (status === 'ON') {
+            b.style.background = '#69f0ae20';
+            b.style.color = 'var(--ok)';
+        } else if (status === 'OFF') {
+            b.style.background = '#ff525220';
+            b.style.color = 'var(--err)';
+        } else if (status === 'REBUILDING' || status === 'STARTING') {
+            b.style.background = '#ffab0020';
+            b.style.color = 'var(--warn)';
+        } else {
+            b.style.background = 'var(--bg4)';
+            b.style.color = 'var(--txt3)';
+        }
     },
     updateProxyTest: (show, status, pct, alive, testing, dead) => {
         $('testOverlay').classList.toggle('show', show);
@@ -760,18 +796,27 @@ function syncUiFromCfg() {
 
   $('cfgTorEnabled').classList.toggle('on', !!cfg.torEnabled);
   $('cfgTorRoute').classList.toggle('on', !!cfg.torRoute);
+  $('cfgTorAutoRebuild').classList.toggle('on', !!cfg.torAutoRebuild);
+  $('cfgPinnedProxy').value = cfg.pinnedProxy;
 
   const torSection = $('torSection');
   const torMasterRow = $('torMasterRow');
   const torRouteRow = $('torRouteRow');
+  const torAutoRebuildRow = $('torAutoRebuildRow');
+  const torStatusCard = $('torStatusCard');
+
   if (!window.torInstalled) {
       torMasterRow.classList.add('disabled');
       torRouteRow.classList.add('disabled');
+      torAutoRebuildRow.classList.add('disabled');
+      torStatusCard.style.display = 'none';
       torSection.style.color = 'var(--err)';
       torSection.innerHTML = 'Tor Services <span style="font-size:8px;margin-left:8px">(NOT FOUND)</span>';
   } else {
       torMasterRow.classList.remove('disabled');
       torRouteRow.classList.remove('disabled');
+      torAutoRebuildRow.classList.remove('disabled');
+      torStatusCard.style.display = 'block';
       torSection.style.color = '';
       torSection.innerHTML = 'Tor Services';
   }
@@ -804,10 +849,10 @@ $('clearCache').onclick = () => { TRERBridge.clearCache(); closeDrawer('settings
 $('clearDebug').onclick = () => { $('debugBody').innerHTML = ''; $('debugCount').textContent = '0 lines'; };
 $('btnRefresh').onclick = () => { location.reload(); };
 
-['cfgAntiSeo', 'cfgDiversity', 'cfgRetry', 'cfgTorEnabled', 'cfgTorRoute'].forEach(id => {
+['cfgAntiSeo', 'cfgDiversity', 'cfgRetry', 'cfgTorEnabled', 'cfgTorRoute', 'cfgTorAutoRebuild'].forEach(id => {
     const path = {
       cfgAntiSeo: 'antiSeo', cfgDiversity: 'diversity', cfgRetry: 'retry',
-      cfgTorEnabled: 'torEnabled', cfgTorRoute: 'torRoute'
+      cfgTorEnabled: 'torEnabled', cfgTorRoute: 'torRoute', cfgTorAutoRebuild: 'torAutoRebuild'
     }[id];
     $(id).onclick = function () {
         const v = !cfg[path];
@@ -835,6 +880,7 @@ $('cfgNguEnabled').onclick = function () {
 });
 
 $('btnRetestProxies').onclick = () => { TRERBridge.retestProxies(); closeDrawer('settings'); };
+$('btnForceRebuild').onclick = () => { TRERBridge.forceRebuildTor(); };
 $('exportDebug').onclick = () => {
     const lines = Array.from($('debugBody').children).map(el => el.innerText);
     TRERBridge.exportDebug(lines.join('\n'));

@@ -20,6 +20,8 @@ public class TREREngine {
         void onNguUpdate(boolean show, String text, int attempt, int pct);
         void onFinished(boolean success);
         void logDebug(String lvl, String msg);
+        void onTorRebuildRequested();
+        String getTorStatus();
     }
 
     public TREREngine(Config cfg, EngineCallback callback) {
@@ -238,15 +240,20 @@ public class TREREngine {
             return fetchNgu(url);
         }
 
+        if (cfg.pinnedProxy == -2) {
+            return fetchWithRebuildSupport(url, null, attempt);
+        }
+
         // Try pinned proxy if set
         if (cfg.pinnedProxy >= 0 && cfg.pinnedProxy < PROXIES.length) {
-            return Networking.fetch(url, PROXIES[cfg.pinnedProxy], attempt, cfg);
+            return fetchWithRebuildSupport(url, PROXIES[cfg.pinnedProxy], attempt);
         }
 
         // Try direct first
         try {
-            return Networking.fetch(url, null, attempt, cfg);
+            return fetchWithRebuildSupport(url, null, attempt);
         } catch (Exception e) {
+            if (isTorBlocked(e.getMessage())) throw e; // Already handled or shouldn't retry with public proxies if Tor is the issue
             if (!cfg.retry) throw e;
             callback.logDebug("warn", "Direct fetch failed, trying proxies: " + e.getMessage());
 
@@ -254,13 +261,53 @@ public class TREREngine {
             for (int i = 0; i < PROXIES.length; i++) {
                 if (abortFlag) throw new Exception("Aborted");
                 try {
-                    return Networking.fetch(url, PROXIES[i], attempt + i + 1, cfg);
+                    return fetchWithRebuildSupport(url, PROXIES[i], attempt + i + 1);
                 } catch (Exception ex) {
+                    if (isTorBlocked(ex.getMessage())) throw ex;
                     callback.logDebug("warn", "Proxy " + i + " failed: " + ex.getMessage());
                 }
             }
             throw e;
         }
+    }
+
+    private String fetchWithRebuildSupport(String url, String proxyPattern, int attempt) throws Exception {
+        while (true) {
+            try {
+                return Networking.fetch(url, proxyPattern, attempt, cfg);
+            } catch (Exception e) {
+                if (cfg.torEnabled && cfg.torRoute && cfg.torAutoRebuild && isTorBlocked(e.getMessage())) {
+                    callback.logDebug("warn", "Tor block detected. Triggering rebuild...");
+                    callback.onTorRebuildRequested();
+                    waitForTor();
+                    continue; // Retry after rebuild
+                }
+                throw e;
+            }
+        }
+    }
+
+    private boolean isTorBlocked(String error) {
+        if (error == null) return false;
+        return error.contains("detected that you have connected over Tor") ||
+               error.contains("issue with the Tor Exit Node") ||
+               error.contains("recreate your Tor circuit");
+    }
+
+    private void waitForTor() throws Exception {
+        callback.logDebug("info", "Waiting for Tor to reconnect...");
+        int timeout = 0;
+        while (timeout < 60) { // 60 seconds timeout
+            if (abortFlag) throw new Exception("Aborted");
+            String status = callback.getTorStatus();
+            if ("ON".equals(status)) {
+                callback.logDebug("info", "Tor is back ONLINE.");
+                return;
+            }
+            Thread.sleep(1000);
+            timeout++;
+        }
+        callback.logDebug("error", "Tor reconnection timed out.");
     }
 
     private void sortExpansionTerms(List<ExpansionTerm> list) {
@@ -293,13 +340,15 @@ public class TREREngine {
             attempt++;
             try {
                 String result;
-                if (cfg.pinnedProxy >= 0 && cfg.pinnedProxy < PROXIES.length) {
-                    result = Networking.fetch(url, PROXIES[cfg.pinnedProxy], attempt, cfg);
+                if (cfg.pinnedProxy == -2) {
+                    result = fetchWithRebuildSupport(url, null, attempt);
+                } else if (cfg.pinnedProxy >= 0 && cfg.pinnedProxy < PROXIES.length) {
+                    result = fetchWithRebuildSupport(url, PROXIES[cfg.pinnedProxy], attempt);
                 } else if (attempt == 1) {
-                    result = Networking.fetch(url, null, attempt, cfg);
+                    result = fetchWithRebuildSupport(url, null, attempt);
                 } else {
                     int pIdx = (attempt - 2) % PROXIES.length;
-                    result = Networking.fetch(url, PROXIES[pIdx], attempt, cfg);
+                    result = fetchWithRebuildSupport(url, PROXIES[pIdx], attempt);
                 }
                 callback.logDebug("info", "Fetch successful on attempt " + attempt);
                 return result;

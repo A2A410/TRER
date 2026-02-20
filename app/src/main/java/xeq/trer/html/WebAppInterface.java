@@ -1,9 +1,11 @@
 package xeq.trer.html;
 
+import android.content.BroadcastReceiver;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Handler;
@@ -23,17 +25,36 @@ public class WebAppInterface implements TREREngine.EngineCallback {
     private Config mCfg;
     private final Handler mHandler = new Handler(Looper.getMainLooper());
     private final Gson mGson = new Gson();
+    private String mTorStatus = "UNKNOWN";
+
+    private final BroadcastReceiver mTorStatusReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String status = intent.getStringExtra("org.torproject.android.intent.extra.STATUS");
+            if (status == null) status = intent.getStringExtra("status");
+            if (status != null) {
+                mTorStatus = status.toUpperCase();
+                callJs("TRER_UI.updateTorStatus", mTorStatus);
+            }
+        }
+    };
 
     public WebAppInterface(Context c, WebView webView) {
         mContext = c;
         mWebView = webView;
         mCfg = Storage.loadConfig(c);
+
+        IntentFilter filter = new IntentFilter();
+        filter.addAction("org.torproject.android.intent.action.STATUS");
+        filter.addAction("info.pluggabletransports.status");
+        mContext.registerReceiver(mTorStatusReceiver, filter);
     }
 
     @JavascriptInterface
     public void init() {
         boolean torInstalled = isTorServicesInstalled();
         callJs("TRER_UI.updateConfig", mGson.toJson(mCfg), torInstalled);
+        callJs("TRER_UI.updateTorStatus", mTorStatus);
         if (mCfg.torEnabled) {
             handleTorToggled(true);
         }
@@ -102,6 +123,11 @@ public class WebAppInterface implements TREREngine.EngineCallback {
     }
 
     @JavascriptInterface
+    public void forceRebuildTor() {
+        rebuildTor();
+    }
+
+    @JavascriptInterface
     public void clearCache() {
         mWebView.post(new ClearCacheRunnable(mWebView, this));
     }
@@ -136,7 +162,37 @@ public class WebAppInterface implements TREREngine.EngineCallback {
             Intent intent = new Intent("org.torproject.android.intent.action.START");
             intent.setPackage("org.torproject.torservices");
             mContext.sendBroadcast(intent);
+        } else {
+            logDebug("info", "Requesting TorServices to stop...");
+            Intent intent = new Intent("org.torproject.android.intent.action.STOP");
+            intent.setPackage("org.torproject.torservices");
+            mContext.sendBroadcast(intent);
         }
+    }
+
+    public void rebuildTor() {
+        logDebug("info", "Rebuilding Tor circuit...");
+        onStatus("warn", "Tor rebuild triggered, search pending...");
+
+        Intent stop = new Intent("org.torproject.android.intent.action.STOP");
+        stop.setPackage("org.torproject.torservices");
+        mContext.sendBroadcast(stop);
+
+        mTorStatus = "REBUILDING";
+        callJs("TRER_UI.updateTorStatus", mTorStatus);
+
+        mHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                Intent start = new Intent("org.torproject.android.intent.action.START");
+                start.setPackage("org.torproject.torservices");
+                mContext.sendBroadcast(start);
+            }
+        }, 1500);
+    }
+
+    public String getTorStatus() {
+        return mTorStatus;
     }
 
     private void runOnMainThread(Runnable r) {
@@ -193,6 +249,16 @@ public class WebAppInterface implements TREREngine.EngineCallback {
     public void logDebug(final String lvl, final String msg) {
         final String ts = new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(new java.util.Date());
         callJs("TRER_UI.logDebug", lvl, msg, ts);
+    }
+
+    @Override
+    public void onTorRebuildRequested() {
+        rebuildTor();
+    }
+
+    @Override
+    public String getTorStatus() {
+        return mTorStatus;
     }
 
     private void callJs(String method, Object... args) {

@@ -12,4 +12,5 @@ public class Config {
     public int pinnedProxy = -1;
     public boolean torEnabled = false;
     public boolean torRoute = false;
+    public boolean torAutoRebuild = false;
 }
