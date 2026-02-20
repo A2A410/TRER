@@ -6,7 +6,7 @@
 
     <application
         android:allowBackup="true"
-        android:label="TRER"
+        android:label="${appName}"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
         <activity

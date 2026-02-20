@@ -32,19 +32,25 @@ public class TREREngine {
     }
 
     public void run(final String query) {
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    execute(query);
-                    callback.onFinished(true);
-                } catch (Exception e) {
-                    callback.onStatus("err", "Error: " + e.getMessage());
-                    callback.logDebug("error", "Engine error: " + e.getMessage());
-                    callback.onFinished(false);
-                }
+        new Thread(new EngineRunnable(query)).start();
+    }
+
+    private class EngineRunnable implements Runnable {
+        private final String query;
+        EngineRunnable(String query) {
+            this.query = query;
+        }
+        @Override
+        public void run() {
+            try {
+                execute(query);
+                callback.onFinished(true);
+            } catch (Exception e) {
+                callback.onStatus("err", "Error: " + e.getMessage());
+                callback.logDebug("error", "Engine error: " + e.getMessage());
+                callback.onFinished(false);
             }
-        }).start();
+        }
     }
 
     private void execute(String query) throws Exception {
@@ -124,12 +130,7 @@ public class TREREngine {
             t.tag = sb.toString();
         }
 
-        Collections.sort(scored, new Comparator<Models.ExpansionTerm>() {
-            @Override
-            public int compare(Models.ExpansionTerm a, Models.ExpansionTerm b) {
-                return Double.compare(b.score, a.score);
-            }
-        });
+        Collections.sort(scored, new ScoredComparator());
 
         List<Models.ExpansionTerm> finalTerms = new ArrayList<>();
         for (Models.ExpansionTerm t : scored) {
@@ -257,12 +258,7 @@ public class TREREngine {
             r.waveStr = ws.toString();
         }
 
-        Collections.sort(scored, new Comparator<Models.SearchResult>() {
-            @Override
-            public int compare(Models.SearchResult a, Models.SearchResult b) {
-                return b.score - a.score;
-            }
-        });
+        Collections.sort(scored, new SearchResultComparator());
 
         if (cfg.diversity) {
             List<Models.SearchResult> diverse = new ArrayList<>();
@@ -281,6 +277,20 @@ public class TREREngine {
 
         if (scored.size() > cfg.topN) return scored.subList(0, cfg.topN);
         return scored;
+    }
+
+    private static class ScoredComparator implements Comparator<Models.ExpansionTerm> {
+        @Override
+        public int compare(Models.ExpansionTerm a, Models.ExpansionTerm b) {
+            return Double.compare(b.score, a.score);
+        }
+    }
+
+    private static class SearchResultComparator implements Comparator<Models.SearchResult> {
+        @Override
+        public int compare(Models.SearchResult a, Models.SearchResult b) {
+            return b.score - a.score;
+        }
     }
 
     private int calculateSeoPenalty(Models.SearchResult r) {

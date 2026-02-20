@@ -36,8 +36,18 @@ android {
     }
 
     buildTypes {
+        debug {
+            manifestPlaceholders = [appName: "TRER D"]
+        }
         release {
             minifyEnabled false
+            manifestPlaceholders = [appName: "TRER"]
+        }
+        beta {
+            initWith release
+            applicationIdSuffix ".beta"
+            manifestPlaceholders = [appName: "TRER B"]
+            matchingFallbacks = ['release']
         }
     }
 }

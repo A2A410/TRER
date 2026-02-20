@@ -1657,33 +1657,6 @@ function loadCfg(){
   $('nguDelayRow').style.display=nguOn?'':'none';
   $('nguRetriesRow').style.display=nguOn?'':'none';
   
-  // Populate proxy dropdown (only alive)
-  const sel=$('cfgPinnedProxy');
-  sel.innerHTML='<option value="-1">Auto (cycle alive)</option>';
-  const alive=PROXY_META.filter(p=>p.health==='alive');
-  const dead=PROXY_META.filter(p=>p.health==='dead');
-  alive.forEach(p=>{
-    const idx=PROXY_META.indexOf(p);
-    const opt=document.createElement('option');
-    opt.value=idx;
-    opt.textContent=`✓ [${idx}] ${p.name}`;
-    sel.appendChild(opt);
-  });
-  if(dead.length&&alive.length){
-    const sep=document.createElement('option');
-    sep.disabled=true;
-    sep.textContent='───────────────';
-    sel.appendChild(sep);
-  }
-  dead.forEach(p=>{
-    const idx=PROXY_META.indexOf(p);
-    const opt=document.createElement('option');
-    opt.value=idx;
-    opt.textContent=`✗ [${idx}] ${p.name} (dead)`;
-    opt.style.color='var(--txt3)';
-    sel.appendChild(opt);
-  });
-  sel.value=cfg.pinnedProxy;
 }
 
 // Toggle handlers - simplified
@@ -1735,7 +1708,7 @@ $('openDebug').onclick=()=>{closeDrawer('settings');openDrawer('debug');};
 $('openChangelog').onclick=()=>{renderChangelog();closeDrawer('settings');openDrawer('changelog');};
 $('clearHistory').onclick=()=>{
   histArr=[];
-  try{localStorage.removeItem(HIST_KEY);}catch{}
+  try{localStorage.setItem(HIST_KEY)},JSON.stringify(histArr));}catch{}
   showToast('History cleared');
   closeDrawer('settings');
 };
