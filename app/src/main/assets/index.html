@@ -96,6 +96,8 @@ body{display:flex;flex-direction:column;max-width:520px;margin:0 auto;min-height
 .rc-badge.score{background:#69f0ae08;border-color:#69f0ae20;color:var(--ok)}
 .rc-badge.domain{background:#7c4dff08;border-color:#7c4dff20;color:#b47aff}
 
+.setting-row.disabled{opacity:.4;filter:blur(0.8px);pointer-events:none}
+
 /* EMPTY / ERROR */
 .empty-state{padding:40px 14px;text-align:center}
 .empty-icon{font-size:36px;margin-bottom:12px;opacity:.3}
@@ -421,6 +423,22 @@ body{display:flex;flex-direction:column;max-width:520px;margin:0 auto;min-height
       <button class="sm-btn" id="clearCache">CLEAR</button>
     </div>
 
+    <div class="setting-section" id="torSection">Tor Services</div>
+    <div class="setting-row" id="torMasterRow">
+      <div class="setting-info">
+        <div class="setting-lbl">Master switch</div>
+        <div class="setting-sub">Connecting or linking to service</div>
+      </div>
+      <div class="toggle" id="cfgTorEnabled"></div>
+    </div>
+    <div class="setting-row" id="torRouteRow">
+      <div class="setting-info">
+        <div class="setting-lbl">Route true</div>
+        <div class="setting-sub">Reroute all requests via Tor</div>
+      </div>
+      <div class="toggle" id="cfgTorRoute"></div>
+    </div>
+
     <div style="text-align:center;padding-top:16px">
       <span style="font-size:9px;color:var(--txt3)">TRER v1.7 · Three-Wave Semantic Resolver</span>
     </div>
@@ -518,8 +536,9 @@ const $=id=>document.getElementById(id);
 // ─── BRIDGE INTERFACE ────────────────────────────────────────
 // These functions are called from Java
 window.TRER_UI = {
-    updateConfig: (json) => {
+    updateConfig: (json, torInstalled) => {
         cfg = JSON.parse(json);
+        window.torInstalled = torInstalled;
         syncUiFromCfg();
     },
     updateHistory: (json) => {
@@ -738,7 +757,24 @@ function syncUiFromCfg() {
   $('cfgNguEnabled').classList.toggle('on', !!cfg.ngu.enabled);
   $('nguDelayRow').style.display = cfg.ngu.enabled ? '' : 'none';
   $('nguRetriesRow').style.display = cfg.ngu.enabled ? '' : 'none';
-  // Proxy dropdown would be populated here if needed, but Java handles proxies now
+
+  $('cfgTorEnabled').classList.toggle('on', !!cfg.torEnabled);
+  $('cfgTorRoute').classList.toggle('on', !!cfg.torRoute);
+
+  const torSection = $('torSection');
+  const torMasterRow = $('torMasterRow');
+  const torRouteRow = $('torRouteRow');
+  if (!window.torInstalled) {
+      torMasterRow.classList.add('disabled');
+      torRouteRow.classList.add('disabled');
+      torSection.style.color = 'var(--err)';
+      torSection.innerHTML = 'Tor Services <span style="font-size:8px;margin-left:8px">(NOT FOUND)</span>';
+  } else {
+      torMasterRow.classList.remove('disabled');
+      torRouteRow.classList.remove('disabled');
+      torSection.style.color = '';
+      torSection.innerHTML = 'Tor Services';
+  }
 }
 
 function updateCfg(path, val) {
@@ -768,8 +804,11 @@ $('clearCache').onclick = () => { TRERBridge.clearCache(); closeDrawer('settings
 $('clearDebug').onclick = () => { $('debugBody').innerHTML = ''; $('debugCount').textContent = '0 lines'; };
 $('btnRefresh').onclick = () => { location.reload(); };
 
-['cfgAntiSeo', 'cfgDiversity', 'cfgRetry'].forEach(id => {
-    const path = { cfgAntiSeo: 'antiSeo', cfgDiversity: 'diversity', cfgRetry: 'retry' }[id];
+['cfgAntiSeo', 'cfgDiversity', 'cfgRetry', 'cfgTorEnabled', 'cfgTorRoute'].forEach(id => {
+    const path = {
+      cfgAntiSeo: 'antiSeo', cfgDiversity: 'diversity', cfgRetry: 'retry',
+      cfgTorEnabled: 'torEnabled', cfgTorRoute: 'torRoute'
+    }[id];
     $(id).onclick = function () {
         const v = !cfg[path];
         updateCfg(path, v);
