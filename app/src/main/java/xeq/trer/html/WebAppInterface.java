@@ -26,18 +26,7 @@ public class WebAppInterface implements TREREngine.EngineCallback {
     private final Handler mHandler = new Handler(Looper.getMainLooper());
     private final Gson mGson = new Gson();
     private String mTorStatus = "UNKNOWN";
-
-    private final BroadcastReceiver mTorStatusReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String status = intent.getStringExtra("org.torproject.android.intent.extra.STATUS");
-            if (status == null) status = intent.getStringExtra("status");
-            if (status != null) {
-                mTorStatus = status.toUpperCase();
-                callJs("TRER_UI.updateTorStatus", mTorStatus);
-            }
-        }
-    };
+    private final TorStatusReceiver mTorStatusReceiver = new TorStatusReceiver(this);
 
     public WebAppInterface(Context c, WebView webView) {
         mContext = c;
@@ -181,18 +170,12 @@ public class WebAppInterface implements TREREngine.EngineCallback {
         mTorStatus = "REBUILDING";
         callJs("TRER_UI.updateTorStatus", mTorStatus);
 
-        mHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                Intent start = new Intent("org.torproject.android.intent.action.START");
-                start.setPackage("org.torproject.torservices");
-                mContext.sendBroadcast(start);
-            }
-        }, 1500);
+        mHandler.postDelayed(new TorStartRunnable(mContext), 1500);
     }
 
-    public String getTorStatus() {
-        return mTorStatus;
+    public void updateTorStatusLocally(String status) {
+        mTorStatus = status;
+        callJs("TRER_UI.updateTorStatus", mTorStatus);
     }
 
     private void runOnMainThread(Runnable r) {
