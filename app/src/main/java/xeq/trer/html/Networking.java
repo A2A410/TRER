@@ -9,6 +9,8 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.util.ArrayList;
@@ -26,7 +28,7 @@ public class Networking {
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0"
     };
 
-    public static String fetch(String urlString, String proxyPattern, int attempt) throws Exception {
+    public static String fetch(String urlString, String proxyPattern, int attempt, Config cfg) throws Exception {
         String targetUrl = urlString;
         if (proxyPattern != null) {
             // Handle specific proxy patterns from the original HTML
@@ -45,8 +47,13 @@ public class Networking {
             }
         }
 
+        Proxy proxy = Proxy.NO_PROXY;
+        if (cfg != null && cfg.torEnabled && cfg.torRoute) {
+            proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress("127.0.0.1", 9050));
+        }
+
         URL url = new URL(targetUrl);
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection(proxy);
         conn.setRequestMethod("GET");
         conn.setRequestProperty("User-Agent", USER_AGENTS[attempt % USER_AGENTS.length]);
         conn.setRequestProperty("Accept", "text/html,application/json,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
@@ -83,8 +90,8 @@ public class Networking {
         }
     }
 
-    public static List<Models.SearchResult> parseDDGHtml(String html, int maxResults) {
-        List<Models.SearchResult> results = new ArrayList<>();
+    public static List<SearchResult> parseDDGHtml(String html, int maxResults) {
+        List<SearchResult> results = new ArrayList<>();
         Document doc = Jsoup.parse(html);
 
         // Try multiple selectors
@@ -120,7 +127,7 @@ public class Networking {
 
             String domain = getDomain(url);
             if (domain != null && !title.isEmpty()) {
-                results.add(new Models.SearchResult(title, url, domain, snippet));
+                results.add(new SearchResult(title, url, domain, snippet));
             }
             if (results.size() >= maxResults) break;
         }
@@ -143,7 +150,7 @@ public class Networking {
                 String title = a.text().trim();
                 if (title.length() < 5) continue;
                 String domain = getDomain(url);
-                results.add(new Models.SearchResult(title, url, domain, ""));
+                results.add(new SearchResult(title, url, domain, ""));
                 if (results.size() >= maxResults) break;
             }
         }
