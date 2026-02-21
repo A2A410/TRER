@@ -48,7 +48,9 @@ public class Networking {
         }
 
         Proxy proxy = Proxy.NO_PROXY;
-        if (cfg != null && cfg.torEnabled && cfg.torRoute) {
+        if (cfg != null && cfg.pinnedProxy == -2) {
+            proxy = Proxy.NO_PROXY;
+        } else if (cfg != null && cfg.torEnabled && cfg.torRoute) {
             proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress("127.0.0.1", 9050));
         }
 
@@ -194,5 +196,22 @@ public class Networking {
             }
         }
         return tokens;
+    }
+
+    public static String testTor() throws Exception {
+        Proxy proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress("127.0.0.1", 9050));
+        URL url = new URL("https://check.torproject.org/api/ip");
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection(proxy);
+        conn.setRequestMethod("GET");
+        conn.setConnectTimeout(5000);
+        conn.setReadTimeout(5000);
+
+        int code = conn.getResponseCode();
+        if (code != 200) throw new Exception("HTTP " + code);
+
+        BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+        String line = in.readLine();
+        in.close();
+        return line;
     }
 }

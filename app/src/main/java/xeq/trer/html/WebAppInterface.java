@@ -65,11 +65,11 @@ public class WebAppInterface implements TREREngine.EngineCallback {
     @JavascriptInterface
     public void saveConfig(String json) {
         Config newCfg = mGson.fromJson(json, Config.class);
-        boolean torJustEnabled = newCfg.torEnabled && !mCfg.torEnabled;
+        boolean torChanged = newCfg.torEnabled != mCfg.torEnabled;
         mCfg = newCfg;
         Storage.saveConfig(mContext, mCfg);
-        if (torJustEnabled) {
-            handleTorToggled(true);
+        if (torChanged) {
+            handleTorToggled(mCfg.torEnabled);
         }
     }
 
@@ -117,6 +117,11 @@ public class WebAppInterface implements TREREngine.EngineCallback {
     }
 
     @JavascriptInterface
+    public void testTorConnection() {
+        new Thread(new TorTestRunnable(this)).start();
+    }
+
+    @JavascriptInterface
     public void clearCache() {
         mWebView.post(new ClearCacheRunnable(mWebView, this));
     }
@@ -160,22 +165,33 @@ public class WebAppInterface implements TREREngine.EngineCallback {
     }
 
     public void rebuildTor() {
-        logDebug("info", "Rebuilding Tor circuit...");
+        logDebug("info", "Rebuilding Tor circuit (NEWNYM)...");
         onStatus("warn", "Tor rebuild triggered, search pending...");
 
-        Intent stop = new Intent("org.torproject.android.intent.action.STOP");
-        stop.setPackage("org.torproject.torservices");
-        mContext.sendBroadcast(stop);
+        // Try NEWNYM first (faster)
+        Intent nym = new Intent("org.torproject.android.intent.action.NEWNYM");
+        nym.setPackage("org.torproject.torservices");
+        mContext.sendBroadcast(nym);
+
+        // Also do a full toggle if requested or as a fallback in logic
+        // But for "Auto Rebuild", NEWNYM might be enough.
+        // User asked "why rebuild cause why it goes http 404 for tor".
+        // If NEWNYM doesn't work, we can fallback to STOP/START.
 
         mTorStatus = "REBUILDING";
         callJs("TRER_UI.updateTorStatus", mTorStatus);
 
-        mHandler.postDelayed(new TorStartRunnable(mContext), 1500);
+        // If NEWNYM isn't enough, we wait and then do a hard restart
+        mHandler.postDelayed(new TorHardRestartRunnable(mContext, mHandler), 2000);
     }
 
     public void updateTorStatusLocally(String status) {
         mTorStatus = status;
         callJs("TRER_UI.updateTorStatus", mTorStatus);
+    }
+
+    public void onTorTestResult(final boolean success, final String msg) {
+        mHandler.post(new TorTestResultRunnable(this, success, msg));
     }
 
     private void runOnMainThread(Runnable r) {
@@ -244,7 +260,7 @@ public class WebAppInterface implements TREREngine.EngineCallback {
         return mTorStatus;
     }
 
-    private void callJs(String method, Object... args) {
+    void callJs(String method, Object... args) {
         StringBuilder sb = new StringBuilder();
         sb.append(method).append("(");
         for (int i = 0; i < args.length; i++) {

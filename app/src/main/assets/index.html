@@ -433,7 +433,9 @@ body{display:flex;flex-direction:column;max-width:520px;margin:0 auto;min-height
       </div>
       <div style="display:flex;gap:8px">
         <button class="sm-btn" id="btnForceRebuild" style="flex:1;border-color:var(--warn)40;color:var(--warn)">FORCE REBUILD</button>
+        <button class="sm-btn" id="btnTestTor" style="flex:1;border-color:var(--acc)40;color:var(--acc)">TEST TOR</button>
       </div>
+      <div id="torTestResult" style="font-size:10px;margin-top:8px;padding-top:8px;border-top:1px solid #ffffff08;display:none"></div>
     </div>
 
     <div class="setting-row" id="torMasterRow">
@@ -633,6 +635,15 @@ window.TRER_UI = {
         $('testAliveCount').textContent = alive;
         $('testTestingCount').textContent = testing;
         $('testDeadCount').textContent = dead;
+    },
+    onTorTestResult: (success, msg) => {
+        const btn = $('btnTestTor');
+        const res = $('torTestResult');
+        btn.disabled = false;
+        btn.textContent = 'TEST TOR';
+        res.style.display = 'block';
+        res.style.color = success ? 'var(--ok)' : 'var(--err)';
+        res.textContent = success ? 'Connected! IP: ' + msg : 'Failed: ' + msg;
     },
     logDebug: (lvl, msg, ts) => {
         const b = $('debugBody');
@@ -881,6 +892,12 @@ $('cfgNguEnabled').onclick = function () {
 
 $('btnRetestProxies').onclick = () => { TRERBridge.retestProxies(); closeDrawer('settings'); };
 $('btnForceRebuild').onclick = () => { TRERBridge.forceRebuildTor(); };
+$('btnTestTor').onclick = () => {
+    $('btnTestTor').disabled = true;
+    $('btnTestTor').textContent = 'TESTING...';
+    $('torTestResult').style.display = 'none';
+    TRERBridge.testTorConnection();
+};
 $('exportDebug').onclick = () => {
     const lines = Array.from($('debugBody').children).map(el => el.innerText);
     TRERBridge.exportDebug(lines.join('\n'));

@@ -289,9 +289,11 @@ public class TREREngine {
 
     private boolean isTorBlocked(String error) {
         if (error == null) return false;
+        // User reports 404/403 often related to Tor blocks on DDG HTML
         return error.contains("detected that you have connected over Tor") ||
                error.contains("issue with the Tor Exit Node") ||
-               error.contains("recreate your Tor circuit");
+               error.contains("recreate your Tor circuit") ||
+               (cfg.torEnabled && cfg.torRoute && (error.contains("HTTP 403") || error.contains("HTTP 404")));
     }
 
     private void waitForTor() throws Exception {
