@@ -1,9 +1,12 @@
 package xeq.trer.html;
 
+import android.content.BroadcastReceiver;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
@@ -19,19 +22,31 @@ public class WebAppInterface implements TREREngine.EngineCallback {
     private final Context mContext;
     private final WebView mWebView;
     private TREREngine mEngine;
-    private Models.Config mCfg;
+    private Config mCfg;
     private final Handler mHandler = new Handler(Looper.getMainLooper());
     private final Gson mGson = new Gson();
+    private String mTorStatus = "UNKNOWN";
+    private final TorStatusReceiver mTorStatusReceiver = new TorStatusReceiver(this);
 
     public WebAppInterface(Context c, WebView webView) {
         mContext = c;
         mWebView = webView;
         mCfg = Storage.loadConfig(c);
+
+        IntentFilter filter = new IntentFilter();
+        filter.addAction("org.torproject.android.intent.action.STATUS");
+        filter.addAction("info.pluggabletransports.status");
+        mContext.registerReceiver(mTorStatusReceiver, filter);
     }
 
     @JavascriptInterface
     public void init() {
-        callJs("TRER_UI.updateConfig", mGson.toJson(mCfg));
+        boolean torInstalled = isTorServicesInstalled();
+        callJs("TRER_UI.updateConfig", mGson.toJson(mCfg), torInstalled);
+        callJs("TRER_UI.updateTorStatus", mTorStatus);
+        if (mCfg.torEnabled) {
+            handleTorToggled(true);
+        }
     }
 
     @JavascriptInterface
@@ -49,19 +64,24 @@ public class WebAppInterface implements TREREngine.EngineCallback {
 
     @JavascriptInterface
     public void saveConfig(String json) {
-        mCfg = mGson.fromJson(json, Models.Config.class);
+        Config newCfg = mGson.fromJson(json, Config.class);
+        boolean torChanged = newCfg.torEnabled != mCfg.torEnabled;
+        mCfg = newCfg;
         Storage.saveConfig(mContext, mCfg);
+        if (torChanged) {
+            handleTorToggled(mCfg.torEnabled);
+        }
     }
 
     @JavascriptInterface
     public void loadHistory() {
-        final List<Models.HistoryEntry> hist = Storage.loadHistory(mContext);
+        final List<HistoryEntry> hist = Storage.loadHistory(mContext);
         callJs("TRER_UI.updateHistory", mGson.toJson(hist));
     }
 
     @JavascriptInterface
     public void deleteHistory(int index) {
-        List<Models.HistoryEntry> hist = Storage.loadHistory(mContext);
+        List<HistoryEntry> hist = Storage.loadHistory(mContext);
         if (index >= 0 && index < hist.size()) {
             hist.remove(index);
             Storage.saveHistory(mContext, hist);
@@ -71,7 +91,7 @@ public class WebAppInterface implements TREREngine.EngineCallback {
 
     @JavascriptInterface
     public void clearHistory() {
-        Storage.saveHistory(mContext, new ArrayList<Models.HistoryEntry>());
+        Storage.saveHistory(mContext, new ArrayList<HistoryEntry>());
         loadHistory();
     }
 
@@ -92,20 +112,18 @@ public class WebAppInterface implements TREREngine.EngineCallback {
     }
 
     @JavascriptInterface
+    public void forceRebuildTor() {
+        rebuildTor();
+    }
+
+    @JavascriptInterface
+    public void testTorConnection() {
+        new Thread(new TorTestRunnable(this)).start();
+    }
+
+    @JavascriptInterface
     public void clearCache() {
-        mWebView.post(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    mWebView.clearCache(true);
-                    CookieManager.getInstance().removeAllCookie();
-                    WebStorage.getInstance().deleteAllData();
-                    onStatus("ok", "Cache and Web Data cleared");
-                } catch (Exception e) {
-                    logDebug("error", "Failed to clear cache: " + e.getMessage());
-                }
-            }
-        });
+        mWebView.post(new ClearCacheRunnable(mWebView, this));
     }
 
     @JavascriptInterface
@@ -120,6 +138,60 @@ public class WebAppInterface implements TREREngine.EngineCallback {
         } catch (Exception e) {
             logDebug("error", "Failed to copy: " + e.getMessage());
         }
+    }
+
+    private boolean isTorServicesInstalled() {
+        PackageManager pm = mContext.getPackageManager();
+        try {
+            pm.getPackageInfo("org.torproject.torservices", PackageManager.GET_ACTIVITIES);
+            return true;
+        } catch (PackageManager.NameNotFoundException e) {
+            return false;
+        }
+    }
+
+    private void handleTorToggled(boolean enabled) {
+        if (enabled) {
+            logDebug("info", "Requesting TorServices to start...");
+            Intent intent = new Intent("org.torproject.android.intent.action.START");
+            intent.setPackage("org.torproject.torservices");
+            mContext.sendBroadcast(intent);
+        } else {
+            logDebug("info", "Requesting TorServices to stop...");
+            Intent intent = new Intent("org.torproject.android.intent.action.STOP");
+            intent.setPackage("org.torproject.torservices");
+            mContext.sendBroadcast(intent);
+        }
+    }
+
+    public void rebuildTor() {
+        logDebug("info", "Rebuilding Tor circuit (NEWNYM)...");
+        onStatus("warn", "Tor rebuild triggered, search pending...");
+
+        // Try NEWNYM first (faster)
+        Intent nym = new Intent("org.torproject.android.intent.action.NEWNYM");
+        nym.setPackage("org.torproject.torservices");
+        mContext.sendBroadcast(nym);
+
+        // Also do a full toggle if requested or as a fallback in logic
+        // But for "Auto Rebuild", NEWNYM might be enough.
+        // User asked "why rebuild cause why it goes http 404 for tor".
+        // If NEWNYM doesn't work, we can fallback to STOP/START.
+
+        mTorStatus = "REBUILDING";
+        callJs("TRER_UI.updateTorStatus", mTorStatus);
+
+        // If NEWNYM isn't enough, we wait and then do a hard restart
+        mHandler.postDelayed(new TorHardRestartRunnable(mContext, mHandler), 2000);
+    }
+
+    public void updateTorStatusLocally(String status) {
+        mTorStatus = status;
+        callJs("TRER_UI.updateTorStatus", mTorStatus);
+    }
+
+    public void onTorTestResult(final boolean success, final String msg) {
+        mHandler.post(new TorTestResultRunnable(this, success, msg));
     }
 
     private void runOnMainThread(Runnable r) {
@@ -139,18 +211,18 @@ public class WebAppInterface implements TREREngine.EngineCallback {
     }
 
     @Override
-    public void onKeywordsFound(final String query, final List<Models.ExpansionTerm> terms) {
+    public void onKeywordsFound(final String query, final List<ExpansionTerm> terms) {
         final String json = mGson.toJson(terms);
         callJs("TRER_UI.setKeywords", query, json);
     }
 
     @Override
-    public void onResultsFound(final List<Models.SearchResult> results, final String query) {
+    public void onResultsFound(final List<SearchResult> results, final String query) {
         final String json = mGson.toJson(results);
         callJs("TRER_UI.setResults", json, query);
 
-        List<Models.HistoryEntry> hist = Storage.loadHistory(mContext);
-        hist.add(0, new Models.HistoryEntry(query, results.size(), System.currentTimeMillis()));
+        List<HistoryEntry> hist = Storage.loadHistory(mContext);
+        hist.add(0, new HistoryEntry(query, results.size(), System.currentTimeMillis()));
         if (hist.size() > 20) {
             hist = new ArrayList<>(hist.subList(0, 20));
         }
@@ -178,7 +250,17 @@ public class WebAppInterface implements TREREngine.EngineCallback {
         callJs("TRER_UI.logDebug", lvl, msg, ts);
     }
 
-    private void callJs(String method, Object... args) {
+    @Override
+    public void onTorRebuildRequested() {
+        rebuildTor();
+    }
+
+    @Override
+    public String getTorStatus() {
+        return mTorStatus;
+    }
+
+    void callJs(String method, Object... args) {
         StringBuilder sb = new StringBuilder();
         sb.append(method).append("(");
         for (int i = 0; i < args.length; i++) {
@@ -197,12 +279,6 @@ public class WebAppInterface implements TREREngine.EngineCallback {
         }
         sb.append(")");
         final String script = sb.toString();
-
-        mWebView.post(new Runnable() {
-            @Override
-            public void run() {
-                mWebView.loadUrl("javascript:" + script);
-            }
-        });
+        mWebView.post(new CallJsRunnable(mWebView, script));
     }
 }

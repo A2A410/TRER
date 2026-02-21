@@ -15,7 +15,7 @@ public class Storage {
     private static final String KEY_HIST = "trer_hist_v1";
     private static final Gson gson = new Gson();
 
-    public static void saveConfig(Context context, Models.Config cfg) {
+    public static void saveConfig(Context context, Config cfg) {
         try {
             SharedPreferences.Editor editor = context.getApplicationContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit();
             String json = gson.toJson(cfg);
@@ -27,19 +27,19 @@ public class Storage {
         }
     }
 
-    public static Models.Config loadConfig(Context context) {
+    public static Config loadConfig(Context context) {
         try {
             SharedPreferences prefs = context.getApplicationContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
             String json = prefs.getString(KEY_CFG, null);
-            if (json == null) return new Models.Config();
-            return gson.fromJson(json, Models.Config.class);
+            if (json == null) return new Config();
+            return gson.fromJson(json, Config.class);
         } catch (Exception e) {
             Log.e(TAG, "Failed to load config", e);
-            return new Models.Config();
+            return new Config();
         }
     }
 
-    public static void saveHistory(Context context, List<Models.HistoryEntry> hist) {
+    public static void saveHistory(Context context, List<HistoryEntry> hist) {
         try {
             SharedPreferences.Editor editor = context.getApplicationContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit();
             String json = gson.toJson(hist);
@@ -51,13 +51,13 @@ public class Storage {
         }
     }
 
-    public static List<Models.HistoryEntry> loadHistory(Context context) {
+    public static List<HistoryEntry> loadHistory(Context context) {
         try {
             SharedPreferences prefs = context.getApplicationContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
             String json = prefs.getString(KEY_HIST, null);
             if (json == null) return new ArrayList<>();
-            List<Models.HistoryEntry> list = gson.fromJson(json, new TypeToken<List<Models.HistoryEntry>>(){}.getType());
-            return list != null ? list : new ArrayList<Models.HistoryEntry>();
+            List<HistoryEntry> list = gson.fromJson(json, new TypeToken<List<HistoryEntry>>(){}.getType());
+            return list != null ? list : new ArrayList<HistoryEntry>();
         } catch (Exception e) {
             Log.e(TAG, "Failed to load history", e);
             return new ArrayList<>();
